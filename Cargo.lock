@@ -224,15 +224,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
-name = "hypr-watcher"
-version = "0.1.0"
-dependencies = [
- "hyprland",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "hyprland"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -263,6 +254,15 @@ checksum = "c941d3d52e979612af8cb94e8de49000c7fada2014a7791d173ab41339f4e4eb"
 dependencies = [
  "quote",
  "syn 2.0.32",
+]
+
+[[package]]
+name = "hyprvisor"
+version = "0.1.0"
+dependencies = [
+ "hyprland",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

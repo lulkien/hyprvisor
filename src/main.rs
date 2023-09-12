@@ -23,8 +23,7 @@ fn main() -> hyprland::Result<()> {
     // Verify arguments
     if args.len() != 2 {
         let error_msg: String = match args.len() {
-            1 => "Need an argument: --workspace, --workspace-init, --window, --window-init."
-                .to_string(),
+            1 => "Need an argument: workspace, window.".to_string(),
             _ => "Too many arguments.".to_string(),
         };
         eprintln!("Error: {}", error_msg);
@@ -34,16 +33,16 @@ fn main() -> hyprland::Result<()> {
     // Print data
     let mut event_listener = EventListener::new();
     match args[1].as_str() {
-        "--workspace-init" => {
+        "workspace" => {
+            // Just init
             let active_workspace: String = match Workspace::get_active() {
                 Ok(value) => value.id.to_string(),
                 Err(_) => "[]".to_string(),
             };
-            let init_string = get_workspace_json(&active_workspace);
-            println!("{}", init_string);
-            return Ok(());
-        }
-        "--workspace" => {
+            let workspace_json_init = get_workspace_json(&active_workspace);
+            println!("{workspace_json_init}");
+
+            // Subcribe event
             event_listener.add_workspace_change_handler(|data, _| match data {
                 WorkspaceType::Regular(active_workspace) => {
                     let workspace_json = get_workspace_json(&active_workspace);
@@ -54,7 +53,8 @@ fn main() -> hyprland::Result<()> {
                 }
             });
         }
-        "--window-init" => {
+        "window" => {
+            // Just init
             let active_window: String = match Client::get_active() {
                 Ok(client_opt) => match client_opt {
                     Some(client) => client.title,
@@ -63,9 +63,8 @@ fn main() -> hyprland::Result<()> {
                 Err(_) => "...".to_string(),
             };
             println!("{active_window}");
-            return Ok(());
-        }
-        "--window" => {
+
+            // Subcribe event
             event_listener.add_active_window_change_handler(|event, _| match event {
                 Some(event_data) => {
                     println!("{}", event_data.window_title);

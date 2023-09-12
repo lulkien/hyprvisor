@@ -228,6 +228,8 @@ name = "hypr-watcher"
 version = "0.1.0"
 dependencies = [
  "hyprland",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

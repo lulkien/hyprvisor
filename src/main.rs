@@ -57,7 +57,7 @@ fn main() -> hyprland::Result<()> {
             // Just init
             let active_window: String = match Client::get_active() {
                 Ok(client_opt) => match client_opt {
-                    Some(client) => client.title,
+                    Some(client) => shorten_string(&client.title),
                     None => "...".to_string(),
                 },
                 Err(_) => "...".to_string(),
@@ -67,7 +67,8 @@ fn main() -> hyprland::Result<()> {
             // Subcribe event
             event_listener.add_active_window_change_handler(|event, _| match event {
                 Some(event_data) => {
-                    println!("{}", event_data.window_title);
+                    let window_title = shorten_string(&event_data.window_title);
+                    println!("{window_title}");
                 }
                 None => println!("..."),
             });
@@ -79,6 +80,16 @@ fn main() -> hyprland::Result<()> {
     }
 
     event_listener.start_listener()
+}
+
+fn shorten_string(input: &str) -> String {
+    if input.len() <= 40 {
+        input.to_string()
+    } else {
+        let mut result = input[..37].to_string();
+        result.push_str("...");
+        result
+    }
 }
 
 fn get_workspace_json(active_workspace: &String) -> String {

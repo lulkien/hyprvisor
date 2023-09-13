@@ -3,7 +3,7 @@ use std::env;
 
 // some hyprland stuffs
 use hyprland::data::{Client, Workspace, Workspaces};
-use hyprland::event_listener::EventListenerMutable as EventListener;
+use hyprland::event_listener::{EventListenerMutable as EventListener, WindowEventData};
 use hyprland::prelude::*;
 use hyprland::shared::{WorkspaceId, WorkspaceType};
 
@@ -58,19 +58,23 @@ fn main() -> hyprland::Result<()> {
             let active_window: String = match Client::get_active() {
                 Ok(client_opt) => match client_opt {
                     Some(client) => shorten_string(&client.title),
-                    None => "...".to_string(),
+                    None => "".to_string(),
                 },
-                Err(_) => "...".to_string(),
+                Err(_) => "".to_string(),
             };
             println!("{active_window}");
 
             // Subcribe event
-            event_listener.add_active_window_change_handler(|event, _| match event {
-                Some(event_data) => {
-                    let window_title = shorten_string(&event_data.window_title);
-                    println!("{window_title}");
-                }
-                None => println!("..."),
+            event_listener.add_active_window_change_handler(|data, _| {
+                let title = match data {
+                    Some(WindowEventData {
+                        window_class: _,
+                        window_title,
+                        ..
+                    }) => format!("{window_title}"),
+                    None => "".to_string(),
+                };
+                println!("{title}");
             });
         }
         _ => {

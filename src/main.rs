@@ -2,8 +2,8 @@
 use std::env;
 
 // some hyprland stuffs
-use hyprland::data::{Client, Workspace, Workspaces};
-use hyprland::event_listener::{EventListenerMutable as EventListener, WindowEventData};
+use hyprland::data::{Workspace, Workspaces};
+use hyprland::event_listener::AsyncEventListener;
 use hyprland::prelude::*;
 use hyprland::shared::{WorkspaceId, WorkspaceType};
 
@@ -17,13 +17,14 @@ struct WorkspaceInfo {
     occupied: bool,
 }
 
-fn main() -> hyprland::Result<()> {
+#[tokio::main]
+async fn main() -> hyprland::Result<()> {
     let args: Vec<String> = env::args().collect();
 
     // Verify arguments
     if args.len() != 2 {
         let error_msg: String = match args.len() {
-            1 => "Need an argument: workspace, window.".to_string(),
+            1 => "Need an argument: workspaces.".to_string(),
             _ => "Too many arguments.".to_string(),
         };
         eprintln!("Error: {}", error_msg);
@@ -31,51 +32,74 @@ fn main() -> hyprland::Result<()> {
     }
 
     // Print data
-    let mut event_listener = EventListener::new();
+    // let mut event_listener = EventListener::new();
+    // match args[1].as_str() {
+    //     "workspace" => {
+    //         // Just init
+    //         let active_workspace: String = match Workspace::get_active() {
+    //             Ok(value) => value.id.to_string(),
+    //             Err(_) => "[]".to_string(),
+    //         };
+    //         let workspace_json_init = get_workspace_json(&active_workspace);
+    //         println!("{workspace_json_init}");
+    //
+    //         // Subcribe event
+    //         event_listener.add_workspace_change_handler(|data, _| match data {
+    //             WorkspaceType::Regular(active_workspace) => {
+    //                 let workspace_json = get_workspace_json(&active_workspace);
+    //                 println!("{}", workspace_json);
+    //             }
+    //             _ => {
+    //                 println!("[]");
+    //             }
+    //         });
+    //     }
+    //     "window" => {
+    //         // Just init
+    //         let active_window: String = match Client::get_active() {
+    //             Ok(client_opt) => match client_opt {
+    //                 Some(client) => client.title,
+    //                 None => "...".to_string(),
+    //             },
+    //             Err(_) => "...".to_string(),
+    //         };
+    //         println!("{active_window}");
+    //
+    //         // Subcribe event
+    //         event_listener.add_active_window_change_handler(|event, _| match event {
+    //             Some(event_data) => {
+    //                 println!("{}", event_data.window_title);
+    //             }
+    //             None => println!("..."),
+    //         });
+    //     }
+    //     _ => {
+    //         eprintln!("Error: Invalid argument '{}'", args[1]);
+    //         return Ok(());
+    //     }
+    // }
+    // event_listener.start_listener()
+
+    let mut hyprvisor = AsyncEventListener::new();
+
     match args[1].as_str() {
-        "workspace" => {
+        "workspaces" => {
             // Just init
-            let active_workspace: String = match Workspace::get_active() {
+            let active_workspace: String = match Workspace::get_active_async().await {
                 Ok(value) => value.id.to_string(),
                 Err(_) => "[]".to_string(),
             };
-            let workspace_json_init = get_workspace_json(&active_workspace);
+            let workspace_json_init = get_workspace_json_async(&active_workspace).await;
             println!("{workspace_json_init}");
 
             // Subcribe event
-            event_listener.add_workspace_change_handler(|data, _| match data {
+            hyprvisor.add_workspace_change_handler(async_closure!(move |wst| match wst {
                 WorkspaceType::Regular(active_workspace) => {
-                    let workspace_json = get_workspace_json(&active_workspace);
-                    println!("{}", workspace_json);
+                    let current_workspaces_data = get_workspace_json_async(&active_workspace).await;
+                    println!("{current_workspaces_data}");
                 }
-                _ => {
-                    println!("[]");
-                }
-            });
-        }
-        "window" => {
-            // Just init
-            let active_window: String = match Client::get_active() {
-                Ok(client_opt) => match client_opt {
-                    Some(client) => shorten_string(&client.title),
-                    None => "".to_string(),
-                },
-                Err(_) => "".to_string(),
-            };
-            println!("{active_window}");
-
-            // Subcribe event
-            event_listener.add_active_window_change_handler(|data, _| {
-                let title = match data {
-                    Some(WindowEventData {
-                        window_class: _,
-                        window_title,
-                        ..
-                    }) => format!("{window_title}"),
-                    None => "".to_string(),
-                };
-                println!("{title}");
-            });
+                _ => println!("[]"),
+            }));
         }
         _ => {
             eprintln!("Error: Invalid argument '{}'", args[1]);
@@ -83,9 +107,10 @@ fn main() -> hyprland::Result<()> {
         }
     }
 
-    event_listener.start_listener()
+    hyprvisor.start_listener_async().await
 }
 
+#[allow(dead_code)]
 fn shorten_string(input: &str) -> String {
     if input.len() <= 40 {
         input.to_string()
@@ -96,13 +121,17 @@ fn shorten_string(input: &str) -> String {
     }
 }
 
+#[allow(dead_code)]
 fn get_workspace_json(active_workspace: &String) -> String {
     let workspaces = match Workspaces::get() {
         Ok(data) => data,
         Err(_) => return "[]".to_string(),
     };
-    let occupied_workspaces: Vec<WorkspaceId> =
-        workspaces.iter().map(|workspace| workspace.id).collect();
+    let occupied_workspaces: Vec<WorkspaceId> = workspaces
+        .iter()
+        .filter(|ws| ws.windows > 0)
+        .map(|ws| ws.id)
+        .collect();
 
     let workspaces_info: Vec<WorkspaceInfo> = (1..=10)
         .map(|index| WorkspaceInfo {
@@ -112,6 +141,31 @@ fn get_workspace_json(active_workspace: &String) -> String {
         })
         .collect();
     match serde_json::to_string(&workspaces_info) {
+        Ok(data) => data,
+        Err(_) => "[]".to_string(),
+    }
+}
+
+#[allow(dead_code)]
+async fn get_workspace_json_async(active_workspace: &String) -> String {
+    let workspaces = match Workspaces::get_async().await {
+        Ok(data) => data,
+        Err(_) => return "[]".to_string(),
+    };
+    let occupied_workspaces: Vec<WorkspaceId> = workspaces
+        .iter()
+        .filter(|ws| ws.windows > 0)
+        .map(|ws| ws.id)
+        .collect();
+
+    let workspace_info: Vec<WorkspaceInfo> = (1..=10)
+        .map(|idx| WorkspaceInfo {
+            id: idx,
+            active: idx.to_string() == *active_workspace,
+            occupied: occupied_workspaces.contains(&idx),
+        })
+        .collect();
+    match serde_json::to_string_pretty(&workspace_info) {
         Ok(data) => data,
         Err(_) => "[]".to_string(),
     }

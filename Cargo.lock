@@ -263,6 +263,7 @@ dependencies = [
  "hyprland",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

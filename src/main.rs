@@ -85,20 +85,34 @@ async fn main() -> hyprland::Result<()> {
     match args[1].as_str() {
         "workspaces" => {
             // Just init
-            let active_workspace: String = match Workspace::get_active_async().await {
-                Ok(value) => value.id.to_string(),
-                Err(_) => "[]".to_string(),
-            };
-            let workspace_json_init = get_workspace_json_async(&active_workspace).await;
-            println!("{workspace_json_init}");
+            let active_workspace = get_active_workspace_id().await;
+            let workspaces_data_init = get_workspace_json_async(&active_workspace).await;
+            println!("{}", workspaces_data_init);
 
             // Subcribe event
             hyprvisor.add_workspace_change_handler(async_closure!(move |wst| match wst {
                 WorkspaceType::Regular(active_workspace) => {
-                    let current_workspaces_data = get_workspace_json_async(&active_workspace).await;
+                    let active_id = match active_workspace.parse::<i32>() {
+                        Ok(id) => id,
+                        Err(_) => 0,
+                    };
+                    let current_workspaces_data = get_workspace_json_async(&active_id).await;
                     println!("{current_workspaces_data}");
                 }
                 _ => println!("[]"),
+            }));
+
+            // update workspaces when open/close a new window
+            hyprvisor.add_window_open_handler(async_closure!(|_| {
+                let active_workspace = get_active_workspace_id().await;
+                let workspaces_data_update = get_workspace_json_async(&active_workspace).await;
+                println!("{}", workspaces_data_update);
+            }));
+
+            hyprvisor.add_window_close_handler(async_closure!(|_| {
+                let active_workspace = get_active_workspace_id().await;
+                let workspaces_data_update = get_workspace_json_async(&active_workspace).await;
+                println!("{}", workspaces_data_update);
             }));
         }
         _ => {
@@ -122,7 +136,7 @@ fn shorten_string(input: &str) -> String {
 }
 
 #[allow(dead_code)]
-fn get_workspace_json(active_workspace: &String) -> String {
+fn get_workspace_json(active_workspace: &WorkspaceId) -> String {
     let workspaces = match Workspaces::get() {
         Ok(data) => data,
         Err(_) => return "[]".to_string(),
@@ -136,7 +150,7 @@ fn get_workspace_json(active_workspace: &String) -> String {
     let workspaces_info: Vec<WorkspaceInfo> = (1..=10)
         .map(|index| WorkspaceInfo {
             id: index,
-            active: index.to_string() == *active_workspace,
+            active: index == *active_workspace,
             occupied: occupied_workspaces.contains(&index),
         })
         .collect();
@@ -146,8 +160,7 @@ fn get_workspace_json(active_workspace: &String) -> String {
     }
 }
 
-#[allow(dead_code)]
-async fn get_workspace_json_async(active_workspace: &String) -> String {
+async fn get_workspace_json_async(active_workspace: &WorkspaceId) -> String {
     let workspaces = match Workspaces::get_async().await {
         Ok(data) => data,
         Err(_) => return "[]".to_string(),
@@ -161,12 +174,19 @@ async fn get_workspace_json_async(active_workspace: &String) -> String {
     let workspace_info: Vec<WorkspaceInfo> = (1..=10)
         .map(|idx| WorkspaceInfo {
             id: idx,
-            active: idx.to_string() == *active_workspace,
+            active: idx == *active_workspace,
             occupied: occupied_workspaces.contains(&idx),
         })
         .collect();
-    match serde_json::to_string_pretty(&workspace_info) {
+    match serde_json::to_string(&workspace_info) {
         Ok(data) => data,
         Err(_) => "[]".to_string(),
+    }
+}
+
+async fn get_active_workspace_id() -> WorkspaceId {
+    match Workspace::get_active_async().await {
+        Ok(workspace) => workspace.id,
+        Err(_) => 0,
     }
 }

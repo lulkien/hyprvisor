@@ -1,5 +1,6 @@
-# Hyprvisor &emsp; [![Hyprland](https://img.shields.io/badge/Made%20for-Hyprland-blue)](https://github.com/hyprwm/Hyprland)
+# Hyprvisor
 
+[![Hyprland](https://img.shields.io/badge/Made%20for-Hyprland-blue)](https://github.com/hyprwm/Hyprland)
 A command-line interface (CLI) tool in Rust, powered by the [hyprland-rs](https://github.com/hyprland-community/hyprland-rs), dedicated to monitoring [Hyprland](https://github.com/hyprwm/Hyprland)'s workspace and emitting JSON-formatted information.
 
 ## Installation
@@ -10,7 +11,7 @@ Install dependencies:
 
 * cargo \*
 
-Install with cargo:
+Run these commands:
 
 ```bash
   git clone https://github.com/lulkien/hyprvisor

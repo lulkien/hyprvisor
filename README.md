@@ -1,5 +1,6 @@
 # Hyprvisor
 
+[![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](http://unlicense.org/)
 [![Hyprland](https://img.shields.io/badge/Made%20for-Hyprland-blue)](https://github.com/hyprwm/Hyprland)
 
 A command-line interface (CLI) tool in Rust, powered by the [hyprland-rs](https://github.com/hyprland-community/hyprland-rs), dedicated to monitoring [Hyprland](https://github.com/hyprwm/Hyprland)'s workspace and emitting JSON-formatted information.
@@ -38,7 +39,7 @@ This tool can be used in [eww](https://github.com/elkowar/eww)'s widget.
   ;; Listener
   (deflisten workspaces :initial "[]"
       "bash -c '~/.cargo/bin/hyprvisor workspaces'")
-  
+
   (defwidget workspaces-widget []
       (box :class "workspaces-widget"
           (for ws in workspaces
@@ -46,7 +47,7 @@ This tool can be used in [eww](https://github.com/elkowar/eww)'s widget.
                   :onclick "hyprctl dispatch workspace ${ws.id}"
                   (box :class "workspace-button-${ws.active ? "active" : "deactive"}"
                       :tooltip "Workspace ${ws.id}"
-                      (label 
+                      (label
                           :text "${ws.occupied ? ws.active ? "" : "󰻃"
                                                : ws.active ? "" : "" }"
                       )

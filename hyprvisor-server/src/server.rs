@@ -10,73 +10,78 @@ use tokio::time::sleep;
 use crate::common::{Subscribers, SubscriptionID, SubscriptionInfo};
 
 pub struct Server {
-    socket: String,
-    is_ready: Option<bool>,
+    socket_path: String,
+    listener: Option<UnixListener>,
     subscribers: Arc<Mutex<Subscribers>>,
 }
 
 impl Server {
-    pub async fn new(socket: String) -> Self {
+    pub async fn new(socket_path: String) -> Self {
         Server {
-            socket,
-            is_ready: None,
+            socket_path,
+            listener: None,
             subscribers: Arc::new(Mutex::new(Subscribers::new())),
         }
     }
 
     pub async fn prepare(&mut self) {
-        if fs::metadata(&self.socket).is_err() {
-            println!("No running server binded on socket {}", self.socket);
-            self.is_ready = Some(true);
+        if fs::metadata(&self.socket_path).is_err() {
+            println!("No running server binded on socket {}", self.socket_path);
+            self.create_new_listener();
             return;
         };
 
-        match UnixStream::connect(&self.socket).await {
+        match UnixStream::connect(&self.socket_path).await {
             Ok(_) => {
-                eprintln!("There is a running server bind on {}", self.socket);
-                self.is_ready = Some(false);
+                eprintln!("There is a running server binded on {}", self.socket_path);
+                self.listener = None;
                 return;
             }
-            _ => match fs::remove_file(&self.socket) {
+            _ => match fs::remove_file(&self.socket_path) {
                 Ok(_) => {
-                    println!("Remove old socket {}", self.socket);
-                    self.is_ready = Some(true);
+                    println!("Removed old socket {}", self.socket_path);
+                    self.create_new_listener();
                     return;
                 }
                 Err(e) => {
                     println!(
-                        "Failed to remove old socket path {} | Error: {}",
-                        self.socket, e
+                        "Failed to remove old socket {}. Error: {}",
+                        self.socket_path, e
                     );
-                    self.is_ready = Some(false);
+                    self.listener = None;
                     return;
                 }
             },
         }
     }
 
-    pub async fn start(&mut self) {
-        if self.is_ready.is_none() || Some(false) == self.is_ready {
-            eprintln!("Error: Server is not ready!");
-            return;
-        }
-
-        let unix_listener = match UnixListener::bind(&self.socket) {
+    fn create_new_listener(&mut self) {
+        self.listener = match UnixListener::bind(&self.socket_path) {
             Ok(listener) => {
-                println!("Listening for connection on {}", self.socket);
-                listener
+                println!("Listening for connection on {}", self.socket_path);
+                Some(listener)
             }
-            Err(e) => {
-                eprintln!("Failed to bind on socket: {} | Error: {}", self.socket, e);
-                return;
+            Err(err) => {
+                eprintln!(
+                    "Failed to bind on socket {}. Error: {}",
+                    self.socket_path, err
+                );
+                None
             }
         };
+    }
+
+    pub async fn start(&mut self) {
+        if self.listener.is_none() {
+            return;
+        }
 
         let subscribers_ref = Arc::clone(&self.subscribers);
         tokio::spawn(broadcast_data(subscribers_ref));
 
         // Main loop
-        while let Ok((stream, _)) = unix_listener.accept().await {
+        let listener = self.listener.as_ref().unwrap();
+        while let Ok((stream, _)) = listener.accept().await {
             let sub_ref = Arc::clone(&self.subscribers);
             tokio::spawn(handle_new_connection(stream, sub_ref));
         }

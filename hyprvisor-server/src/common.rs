@@ -18,20 +18,20 @@ pub struct SubscriptionInfo {
     pub name: String,
 }
 
-// pub struct HyprvisorData {
-//     pub workspace_info: HashMap<String, bool>,
-//     pub window_title: String,
-//     pub sink_volume: Option<u32>,
-//     pub source_volume: Option<u32>,
-// }
+pub struct HyprvisorData {
+    pub workspace_info: HashMap<String, bool>,
+    pub window_title: String,
+    pub sink_volume: Option<u32>,
+    pub source_volume: Option<u32>,
+}
 
-// impl HyprvisorData {
-//     pub fn new() -> Self {
-//         HyprvisorData {
-//             workspace_info: HashMap::new(),
-//             window_title: "".to_string(),
-//             sink_volume: None,
-//             source_volume: None,
-//         }
-//     }
-// }
+impl HyprvisorData {
+    pub fn new() -> Self {
+        HyprvisorData {
+            workspace_info: HashMap::new(),
+            window_title: "".to_string(),
+            sink_volume: None,
+            source_volume: None,
+        }
+    }
+}

@@ -7,81 +7,79 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 
-use crate::common::{Subscribers, SubscriptionID, SubscriptionInfo};
+use crate::common::{HyprvisorListener, Subscribers, SubscriptionID, SubscriptionInfo};
+use crate::hypr_listener::HyprListener;
 
 pub struct Server {
-    socket_path: String,
-    listener: Option<UnixListener>,
+    socket: String,
+    is_ready: Option<bool>,
     subscribers: Arc<Mutex<Subscribers>>,
 }
 
 impl Server {
-    pub async fn new(socket_path: String) -> Self {
+    pub fn new() -> Self {
         Server {
-            socket_path,
-            listener: None,
+            socket: "".to_string(),
+            is_ready: None,
             subscribers: Arc::new(Mutex::new(Subscribers::new())),
         }
     }
 
-    pub async fn prepare(&mut self) {
-        if fs::metadata(&self.socket_path).is_err() {
-            println!("No running server binded on socket {}", self.socket_path);
-            self.create_new_listener();
+    pub async fn prepare(&mut self, socket: String) {
+        self.socket = socket;
+
+        if fs::metadata(&self.socket).is_err() {
+            println!("No running server binded on socket {}", self.socket);
+            self.is_ready = Some(true);
             return;
         };
 
-        match UnixStream::connect(&self.socket_path).await {
+        match UnixStream::connect(&self.socket).await {
             Ok(_) => {
-                eprintln!("There is a running server binded on {}", self.socket_path);
-                self.listener = None;
+                eprintln!("There is a running server bind on {}", self.socket);
+                self.is_ready = Some(false);
                 return;
             }
-            _ => match fs::remove_file(&self.socket_path) {
+            _ => match fs::remove_file(&self.socket) {
                 Ok(_) => {
-                    println!("Removed old socket {}", self.socket_path);
-                    self.create_new_listener();
+                    println!("Remove old socket {}", self.socket);
+                    self.is_ready = Some(true);
                     return;
                 }
                 Err(e) => {
                     println!(
-                        "Failed to remove old socket {}. Error: {}",
-                        self.socket_path, e
+                        "Failed to remove old socket path {} | Error: {}",
+                        self.socket, e
                     );
-                    self.listener = None;
+                    self.is_ready = Some(false);
                     return;
                 }
             },
         }
     }
 
-    fn create_new_listener(&mut self) {
-        self.listener = match UnixListener::bind(&self.socket_path) {
-            Ok(listener) => {
-                println!("Listening for connection on {}", self.socket_path);
-                Some(listener)
-            }
-            Err(err) => {
-                eprintln!(
-                    "Failed to bind on socket {}. Error: {}",
-                    self.socket_path, err
-                );
-                None
-            }
-        };
-    }
-
     pub async fn start(&mut self) {
-        if self.listener.is_none() {
+        if self.is_ready.is_none() || Some(false) == self.is_ready {
+            eprintln!("Error: Server is not ready!");
             return;
         }
 
+        let unix_listener = match UnixListener::bind(&self.socket) {
+            Ok(listener) => {
+                println!("Listening for connection on {}", self.socket);
+                listener
+            }
+            Err(e) => {
+                eprintln!("Failed to bind on socket: {} | Error: {}", self.socket, e);
+                return;
+            }
+        };
+
         let subscribers_ref = Arc::clone(&self.subscribers);
-        tokio::spawn(broadcast_data(subscribers_ref));
+        tokio::spawn(start_listen_hypr_event(subscribers_ref));
 
         // Main loop
-        let listener = self.listener.as_ref().unwrap();
-        while let Ok((stream, _)) = listener.accept().await {
+        while let Ok((stream, _)) = unix_listener.accept().await {
             let sub_ref = Arc::clone(&self.subscribers);
             tokio::spawn(handle_new_connection(stream, sub_ref));
         }
@@ -144,6 +142,13 @@ async fn handle_new_connection(mut stream: UnixStream, subscribers: Arc<Mutex<Su
     }
 }
 
+async fn start_listen_hypr_event(subscribers: Arc<Mutex<Subscribers>>) {
+    let mut hypr_listener: HyprListener = HyprListener::new();
+    hypr_listener.prepare_listener();
+    hypr_listener.start_listener(subscribers).await;
+}
+
+#[allow(unused)]
 async fn broadcast_data(subscribers: Arc<Mutex<Subscribers>>) {
     loop {
         println!("Send message to client");

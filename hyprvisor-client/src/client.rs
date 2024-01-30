@@ -58,7 +58,7 @@ impl Client {
 
         // Continuously listen for responses from the server
         loop {
-            let mut response_buffer: [u8; 1024] = [0; 1024]; // Adjust the buffer size based on your expected message size
+            let mut response_buffer: [u8; 8192] = [0; 8192]; // Adjust the buffer size based on your expected message size
             let bytes_received = match stream.read(&mut response_buffer).await {
                 Ok(bytes) => bytes,
                 Err(e) => {

@@ -1,8 +1,10 @@
-use std::{env, ops::Add};
-
 mod common;
+mod hypr_listener;
 mod server;
+
 use server::Server;
+use std::env;
+use std::ops::Add;
 
 #[tokio::main]
 async fn main() {
@@ -11,7 +13,7 @@ async fn main() {
         Err(_) => "/tmp/hyprvisor.sock".to_string(),
     };
 
-    let mut server = Server::new(socket_path).await;
-    server.prepare().await;
+    let mut server = Server::new();
+    server.prepare(socket_path).await;
     server.start().await;
 }

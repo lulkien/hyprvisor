@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::net::UnixStream;
+use tokio::sync::Mutex;
 
 pub type Subscribers = HashMap<SubscriptionID, HashMap<u32, UnixStream>>;
 
@@ -18,20 +20,7 @@ pub struct SubscriptionInfo {
     pub name: String,
 }
 
-pub struct HyprvisorData {
-    pub workspace_info: HashMap<String, bool>,
-    pub window_title: String,
-    pub sink_volume: Option<u32>,
-    pub source_volume: Option<u32>,
-}
-
-impl HyprvisorData {
-    pub fn new() -> Self {
-        HyprvisorData {
-            workspace_info: HashMap::new(),
-            window_title: "".to_string(),
-            sink_volume: None,
-            source_volume: None,
-        }
-    }
+pub trait HyprvisorListener {
+    fn prepare_listener(&mut self);
+    async fn start_listener(&mut self, subscribers: Arc<Mutex<Subscribers>>);
 }

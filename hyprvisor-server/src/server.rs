@@ -156,9 +156,9 @@ async fn broadcast_data(subscribers: Arc<Mutex<Subscribers>>) {
             // Lock server state
             let mut subscribers = subscribers.lock().await;
 
-            for (_, subscribers) in subscribers.iter_mut() {
+            for (_, subscriber) in subscribers.iter_mut() {
                 let mut disconnected_pid: Vec<u32> = Vec::new();
-                for (pid, stream) in subscribers.iter_mut() {
+                for (pid, stream) in subscriber.iter_mut() {
                     let msg = "Test connection".to_string();
                     match stream.write_all(msg.as_bytes()).await {
                         Ok(_) => {
@@ -173,7 +173,7 @@ async fn broadcast_data(subscribers: Arc<Mutex<Subscribers>>) {
 
                 // Remove disconnected_pid
                 for pid in disconnected_pid {
-                    subscribers.remove(&pid);
+                    subscriber.remove(&pid);
                 }
             }
             // Release server state

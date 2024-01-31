@@ -86,7 +86,7 @@ impl Server {
     }
 }
 
-async fn handle_new_connection(mut stream: UnixStream, subscribers: Arc<Mutex<Subscribers>>) {
+async fn handle_new_connection(stream: UnixStream, subscribers: Arc<Mutex<Subscribers>>) {
     // Handle new connection
     let mut buffer: [u8; 1024] = [0; 1024];
     let bytes_received = match stream.try_read(&mut buffer) {
@@ -108,10 +108,10 @@ async fn handle_new_connection(mut stream: UnixStream, subscribers: Arc<Mutex<Su
     match subscription_info {
         Ok(info) => {
             let subscription_id = match info.name.as_str() {
-                "workspace" => SubscriptionID::WORKSPACE,
-                "window" => SubscriptionID::WINDOW,
-                "sink_volume" => SubscriptionID::SINKVOLUME,
-                "source_volume" => SubscriptionID::SOURCEVOLUME,
+                "workspace" => SubscriptionID::Workspace,
+                "window" => SubscriptionID::Window,
+                "sink_volume" => SubscriptionID::SinkVolume,
+                "source_volume" => SubscriptionID::SourceVolume,
                 _ => {
                     eprintln!("Invalid subscription");
                     return;
@@ -125,9 +125,6 @@ async fn handle_new_connection(mut stream: UnixStream, subscribers: Arc<Mutex<Su
                 "New client with PID {} subscribed to {}",
                 info.pid, info.name
             );
-
-            let response_message = "From server with love".to_string();
-            stream.write_all(response_message.as_bytes()).await.unwrap();
 
             subscribers
                 .get_mut(&subscription_id)

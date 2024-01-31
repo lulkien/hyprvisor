@@ -1,32 +1,18 @@
 use regex::Regex;
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, ops::Add, sync::Arc};
+use std::{
+    env,
+    ops::{Add, Deref},
+    sync::Arc,
+};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::UnixStream,
     sync::Mutex,
 };
 
-use crate::common::{HyprvisorListener, Subscribers, SubscriptionID};
-
-#[derive(Debug, Deserialize, Serialize)]
-struct WorkspaceInfo {
-    id: String,
-    name: String,
-    monitor: String,
-    active: bool,
-}
-
-impl WorkspaceInfo {
-    fn new() -> Self {
-        WorkspaceInfo {
-            id: "".to_string(),
-            name: "".to_string(),
-            monitor: "".to_string(),
-            active: false,
-        }
-    }
-}
+use crate::common::{
+    HyprEvent, HyprvisorListener, Subscribers, SubscriptionID, WindowInfo, WorkspaceInfo,
+};
 
 pub struct HyprListener {
     listen_sock: Option<String>,
@@ -82,14 +68,38 @@ impl HyprvisorListener for HyprListener {
             }
         };
 
-        let mut buffer: [u8; 10240] = [0; 10240];
+        let mut buffer: [u8; 8192] = [0; 8192];
         loop {
             match stream.read(&mut buffer).await {
                 Ok(size) if size > 0 => {
-                    let data_changed = process_event(&buffer[..size]);
-                    if data_changed.0 {
+                    let events = process_event(&buffer[..size]);
+                    if let Some(HyprEvent::WorkspaceChanged(active_id)) = events
+                        .iter()
+                        .find(|event| matches!(event, HyprEvent::WorkspaceChanged(_)))
+                    {
+                        // Call do_sth with the data associated with the first matching Workspace variant
                         let subscribers_ref = Arc::clone(&subscribers);
-                        broadcast_workspace_info(command_socket.to_string(), subscribers_ref).await;
+                        tokio::spawn(broadcast_workspace_info(
+                            Arc::new(command_socket.to_string()),
+                            Arc::new(active_id.to_string()),
+                            subscribers_ref,
+                        ));
+                        // broadcast_workspace_info(command_socket, active_id, subscribers_ref).await;
+                    }
+
+                    if let Some(HyprEvent::WindowChanged(window_data)) = events
+                        .iter()
+                        .find(|event| matches!(event, HyprEvent::WindowChanged(_)))
+                    {
+                        let mut window_info: WindowInfo = WindowInfo::new();
+                        window_info.class = window_data.0.clone();
+                        window_info.title = window_data.1.clone();
+
+                        let subscribers_ref = Arc::clone(&subscribers);
+                        tokio::spawn(broadcast_window_info(
+                            Arc::new(window_info),
+                            subscribers_ref,
+                        ));
                     }
                 }
                 Ok(_) | Err(_) => {
@@ -101,24 +111,71 @@ impl HyprvisorListener for HyprListener {
     }
 }
 
-fn process_event(buffer: &[u8]) -> (bool, bool) {
-    let data_chunk = String::from_utf8_lossy(buffer);
-    let events: Vec<String> = data_chunk.lines().map(String::from).collect();
-    let mut data_changed: (bool, bool) = (false, false);
+fn parse_event(data: &str) -> Option<HyprEvent> {
+    let mut parts = data.splitn(2, ">>");
 
-    for event in events {
-        match event {
-            e if e.contains("workspace>>") => data_changed.0 = true,
-            e if e.contains("activewindow>>") => data_changed.1 = true,
-            _ => { /* ignore */ }
+    match (parts.next(), parts.next()) {
+        (Some("activewindow"), Some(window_info)) => {
+            let (class, title) = window_info.split_once(',').unwrap_or(("", ""));
+            Some(HyprEvent::WindowChanged((
+                class.trim().to_string(),
+                title.trim().to_string(),
+            )))
         }
+        (Some("workspace"), Some(value)) => Some(HyprEvent::WorkspaceChanged(value.to_string())),
+        (Some("activewindowv2"), Some(value)) => Some(HyprEvent::Window2Changed(value.to_string())),
+        (Some("createworkspace"), Some(value)) => {
+            Some(HyprEvent::WorkspaceCreated(value.to_string()))
+        }
+        (Some("destroyworkspace"), Some(value)) => {
+            Some(HyprEvent::WorkspaceDestroyed(value.to_string()))
+        }
+        _ => None,
     }
-
-    data_changed
 }
 
-async fn broadcast_workspace_info(cmd_sock: String, subscribers: Arc<Mutex<Subscribers>>) {
-    let mut command_stream: UnixStream = match UnixStream::connect(&cmd_sock).await {
+fn process_event(buffer: &[u8]) -> Vec<HyprEvent> {
+    String::from_utf8_lossy(buffer)
+        .lines()
+        .filter_map(parse_event)
+        .collect()
+}
+
+async fn broadcast_window_info(window_info: Arc<WindowInfo>, subscribers: Arc<Mutex<Subscribers>>) {
+    let win_info = window_info.deref();
+    let win_msg: String = match serde_json::to_string(win_info) {
+        Ok(msg) => msg,
+        Err(e) => {
+            println!("Failed to make window info JSON. Error: {e}");
+            return;
+        }
+    };
+
+    let mut disconnected_pid = Vec::new();
+    let mut subscribers = subscribers.lock().await;
+    if let Some(win_subscribers) = subscribers.get_mut(&SubscriptionID::Window) {
+        for (pid, stream) in win_subscribers.iter_mut() {
+            if let Err(_) = stream.write_all(win_msg.as_bytes()).await {
+                println!("Client {} is dead. Remove later", pid);
+                disconnected_pid.push(*pid);
+            }
+        }
+
+        for pid in disconnected_pid {
+            win_subscribers.remove(&pid);
+        }
+    }
+}
+
+async fn broadcast_workspace_info(
+    cmd_sock_rc: Arc<String>,
+    active_id_rc: Arc<String>,
+    subscribers: Arc<Mutex<Subscribers>>,
+) {
+    let cmd_sock = cmd_sock_rc.deref();
+    let active_id = active_id_rc.deref();
+
+    let mut command_stream = match UnixStream::connect(cmd_sock).await {
         Ok(stream) => stream,
         Err(e) => {
             eprintln!(
@@ -129,12 +186,12 @@ async fn broadcast_workspace_info(cmd_sock: String, subscribers: Arc<Mutex<Subsc
         }
     };
 
-    command_stream
-        .write_all(b"workspaces")
-        .await
-        .expect("Failed to write subscription type");
+    if let Err(e) = command_stream.write_all(b"workspaces").await {
+        eprintln!("Cannot get workspaces info. Error: {e}");
+        return;
+    }
 
-    let mut buffer: [u8; 10240] = [0; 10240];
+    let mut buffer = [0; 8192];
     let mut line = String::new();
     let mut ws_info: Vec<WorkspaceInfo> = Vec::new();
 
@@ -145,11 +202,8 @@ async fn broadcast_workspace_info(cmd_sock: String, subscribers: Arc<Mutex<Subsc
                 for ch in chunk_str.chars() {
                     match ch {
                         '\n' => {
-                            match extract_ws_info(&line.trim().to_string()) {
-                                Some(ws) => {
-                                    ws_info.push(ws);
-                                }
-                                None => {}
+                            if let Some(ws) = extract_ws_info(&line.trim()) {
+                                ws_info.push(ws);
                             }
                             line.clear();
                         }
@@ -157,60 +211,53 @@ async fn broadcast_workspace_info(cmd_sock: String, subscribers: Arc<Mutex<Subsc
                     }
                 }
             }
-            Ok(_) | Err(_) => break, // Break on end of response or error
+            Ok(_) | Err(_) => break,
         }
+    }
+
+    // Sort workspace info numerically based on id
+    ws_info.sort_by(|a, b| a.id.cmp(&b.id));
+
+    if let Some(item) = ws_info
+        .iter_mut()
+        .find(|info| info.id == active_id.parse::<u32>().unwrap_or(1))
+    {
+        item.active = true;
     }
 
     let ws_msg = match serde_json::to_string(&ws_info) {
         Ok(msg) => msg,
         Err(e) => {
-            eprintln!("Error: {}", e);
+            println!("Failed to make workspace JSON. Error: {e}");
             return;
         }
     };
 
-    let mut disconnected_pid: Vec<u32> = Vec::new();
+    let mut disconnected_pid = Vec::new();
     let mut subscribers = subscribers.lock().await;
-    let ws_subscriber: &mut HashMap<u32, UnixStream> =
-        subscribers.get_mut(&SubscriptionID::WORKSPACE).unwrap();
-
-    for (pid, stream) in ws_subscriber.into_iter() {
-        match stream.write_all(ws_msg.as_bytes()).await {
-            Ok(_) => {
-                println!("Client {pid} is alive.");
-            }
-            Err(_) => {
-                println!("Client {pid} is dead. Remove later");
-                disconnected_pid.push(pid.clone());
+    if let Some(ws_subscriber) = subscribers.get_mut(&SubscriptionID::Workspace) {
+        for (pid, stream) in ws_subscriber.iter_mut() {
+            if let Err(_) = stream.write_all(ws_msg.as_bytes()).await {
+                println!("Client {} is dead. Remove later", pid);
+                disconnected_pid.push(*pid);
             }
         }
-    }
 
-    for pid in disconnected_pid {
-        ws_subscriber.remove(&pid);
+        for pid in disconnected_pid {
+            ws_subscriber.remove(&pid);
+        }
     }
-
-    // println!("{ws_msg}");
 }
 
-fn extract_ws_info(data: &String) -> Option<WorkspaceInfo> {
-    let rgx = match Regex::new(r"workspace ID (\d+) \(([^)]+)\) on monitor ([^:]+):") {
-        Ok(rgx) => rgx,
-        Err(e) => {
-            eprintln!("Failed to create regex pattern. Error: {}", e);
-            return None;
-        }
-    };
+fn extract_ws_info(data: &str) -> Option<WorkspaceInfo> {
+    let rgx = Regex::new(r"workspace ID (\d+) \(([^)]+)\) on monitor ([^:]+):").unwrap();
 
-    match rgx.captures(data.as_str()) {
-        Some(data) => {
-            let mut ws: WorkspaceInfo = WorkspaceInfo::new();
-            ws.id = data[1].to_string();
-            ws.name = data[2].to_string();
-            ws.monitor = data[3].to_string();
-            ws.active = false;
-            Some(ws)
-        }
-        None => None,
-    }
+    rgx.captures(data).map(|captures| {
+        let mut ws = WorkspaceInfo::new();
+        ws.id = captures[1].parse::<u32>().unwrap_or(1);
+        ws.name = captures[2].to_string();
+        ws.monitor = captures[3].to_string();
+        ws.active = false;
+        ws
+    })
 }

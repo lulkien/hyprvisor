@@ -1,36 +1,28 @@
-use serde::{Deserialize, Serialize};
 use serde_json::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
-#[derive(Serialize, Deserialize)]
-struct SubscriptionInfo {
-    pid: u32,
-    name: String,
-}
+use crate::common::{SubscriptionID, SubscriptionInfo};
 
 pub struct Client {
     client_info: SubscriptionInfo,
-    is_valid: bool,
+    extra_data: Option<u8>,
 }
 
+#[allow(unreachable_code, unused_variables)]
+#[allow(unused_mut)]
 impl Client {
-    pub async fn new(pid: u32, subscription: String) -> Self {
+    pub fn new(pid: u32, subscription_id: SubscriptionID, extra_data: Option<u8>) -> Self {
         Client {
             client_info: SubscriptionInfo {
                 pid,
-                name: subscription.clone(),
+                subscription_id,
             },
-            is_valid: check_subscription(&subscription),
+            extra_data,
         }
     }
 
     pub async fn connect(self, socket_path: String) {
-        if !self.is_valid {
-            eprintln!("Client info is not valid.");
-            return;
-        }
-
         let mut stream = match UnixStream::connect(&socket_path).await {
             Ok(stream) => stream,
             Err(e) => {
@@ -49,7 +41,7 @@ impl Client {
                 return;
             }
         };
-        // println!("Send: {}", subscription_msg);
+        println!("Send: {}", subscription_msg);
 
         stream
             .write_all(subscription_msg.as_bytes())
@@ -62,13 +54,13 @@ impl Client {
             let bytes_received = match stream.read(&mut response_buffer).await {
                 Ok(bytes) => bytes,
                 Err(e) => {
-                    eprintln!("Error reading from server: {}", e);
+                    println!("Error reading from server: {}", e);
                     break;
                 }
             };
 
             if bytes_received == 0 {
-                eprintln!("Server closed the connection");
+                println!("Server closed the connection");
                 break;
             }
 
@@ -76,17 +68,6 @@ impl Client {
             println!("{}", response_message);
         }
     }
-}
-
-fn check_subscription(id: &String) -> bool {
-    let allow_id: Vec<String> = vec![
-        "workspace".to_string(),
-        "window".to_string(),
-        "sink_volume".to_string(),
-        "source_volume".to_string(),
-    ];
-
-    allow_id.contains(id)
 }
 
 fn create_subscribe_message(info: SubscriptionInfo) -> Result<String, Error> {

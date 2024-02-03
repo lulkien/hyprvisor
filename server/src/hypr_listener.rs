@@ -26,29 +26,32 @@ impl HyprListener {
             command_sock: None,
         }
     }
+
+    pub fn get_hyprland_command_socket() -> Option<String> {
+        match env::var("HYPRLAND_INSTANCE_SIGNATURE") {
+            Ok(value) => Some(format!("/tmp/hypr/{}/.socket.sock", value)),
+            Err(_) => {
+                eprintln!("HYPRLAND_INSTANCE_SIGNATURE not set! (is hyprland running?)");
+                None
+            }
+        }
+    }
+
+    pub fn get_hyprland_event_socket() -> Option<String> {
+        match env::var("HYPRLAND_INSTANCE_SIGNATURE") {
+            Ok(value) => Some(format!("/tmp/hypr/{}/.socket2.sock", value)),
+            Err(_) => {
+                eprintln!("HYPRLAND_INSTANCE_SIGNATURE not set! (is hyprland running?)");
+                None
+            }
+        }
+    }
 }
 
 impl HyprvisorListener for HyprListener {
     fn prepare_listener(&mut self) {
-        let hyprland_instance_signature = match env::var("HYPRLAND_INSTANCE_SIGNATURE") {
-            Ok(value) => value,
-            Err(_) => {
-                eprintln!("HYPRLAND_INSTANCE_SIGNATURE not set! (is hyprland running?)");
-                return;
-            }
-        };
-        self.listen_sock = Some(
-            "/tmp/hypr/"
-                .to_string()
-                .add(hyprland_instance_signature.as_str())
-                .add("/.socket2.sock"),
-        );
-        self.command_sock = Some(
-            "/tmp/hypr/"
-                .to_string()
-                .add(hyprland_instance_signature.as_str())
-                .add("/.socket.sock"),
-        );
+        self.listen_sock = HyprListener::get_hyprland_event_socket();
+        self.command_sock = HyprListener::get_hyprland_command_socket();
     }
 
     async fn start_listener(&mut self, subscribers: Arc<Mutex<Subscribers>>) {
@@ -57,16 +60,22 @@ impl HyprvisorListener for HyprListener {
             return;
         }
 
-        let listen_socket = self.listen_sock.as_ref().unwrap();
-        let command_socket = self.command_sock.as_ref().unwrap();
+        let listen_socket = match HyprListener::get_hyprland_event_socket() {
+            Some(value) => value,
+            None => return,
+        };
 
-        let mut stream = match UnixStream::connect(listen_socket).await {
+        let command_socket = self.command_sock.as_ref().unwrap().to_string();
+
+        let mut stream = match UnixStream::connect(&listen_socket).await {
             Ok(stream) => stream,
             Err(e) => {
                 eprintln!("Failed to connect to {}. Error: {}", listen_socket, e);
                 return;
             }
         };
+
+        println!("Start Hyprland Event listener");
 
         let mut buffer: [u8; 8192] = [0; 8192];
         loop {
@@ -167,7 +176,7 @@ async fn broadcast_window_info(window_info: Arc<WindowInfo>, subscribers: Arc<Mu
     }
 }
 
-async fn broadcast_workspace_info(
+pub async fn broadcast_workspace_info(
     cmd_sock_rc: Arc<String>,
     active_id_rc: Arc<String>,
     subscribers: Arc<Mutex<Subscribers>>,

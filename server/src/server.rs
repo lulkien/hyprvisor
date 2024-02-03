@@ -1,27 +1,24 @@
 use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::io::AsyncWriteExt;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::Mutex;
-use tokio::time::sleep;
 
 use crate::common::{HyprvisorListener, Subscribers, SubscriptionID, SubscriptionInfo};
 use crate::hypr_listener::HyprListener;
 
 pub struct Server {
     socket: String,
-    is_ready: Option<bool>,
     subscribers: Arc<Mutex<Subscribers>>,
+    is_ready: Option<bool>,
 }
 
 impl Server {
     pub fn new() -> Self {
         Server {
             socket: "".to_string(),
-            is_ready: None,
             subscribers: Arc::new(Mutex::new(Subscribers::new())),
+            is_ready: None,
         }
     }
 
@@ -66,7 +63,7 @@ impl Server {
 
         let unix_listener = match UnixListener::bind(&self.socket) {
             Ok(listener) => {
-                println!("Listening for connection on {}", self.socket);
+                println!("Server is listening for connection on {}", self.socket);
                 listener
             }
             Err(e) => {
@@ -107,13 +104,11 @@ async fn handle_new_connection(stream: UnixStream, subscribers: Arc<Mutex<Subscr
 
     match subscription_info {
         Ok(info) => {
-            let subscription_id = match info.name.as_str() {
-                "workspace" => SubscriptionID::Workspace,
-                "window" => SubscriptionID::Window,
-                "sink_volume" => SubscriptionID::SinkVolume,
-                "source_volume" => SubscriptionID::SourceVolume,
+            let subscription_id = match info.subscription_id {
+                SubscriptionID::Workspace => SubscriptionID::Workspace,
+                SubscriptionID::Window => SubscriptionID::Window,
                 _ => {
-                    eprintln!("Invalid subscription");
+                    println!("Subscription ID is not supported!");
                     return;
                 }
             };
@@ -123,7 +118,7 @@ async fn handle_new_connection(stream: UnixStream, subscribers: Arc<Mutex<Subscr
 
             println!(
                 "New client with PID {} subscribed to {}",
-                info.pid, info.name
+                info.pid, info.subscription_id
             );
 
             subscribers
@@ -143,39 +138,4 @@ async fn start_listen_hypr_event(subscribers: Arc<Mutex<Subscribers>>) {
     let mut hypr_listener: HyprListener = HyprListener::new();
     hypr_listener.prepare_listener();
     hypr_listener.start_listener(subscribers).await;
-}
-
-#[allow(unused)]
-async fn broadcast_data(subscribers: Arc<Mutex<Subscribers>>) {
-    loop {
-        println!("Send message to client");
-        {
-            // Lock server state
-            let mut subscribers = subscribers.lock().await;
-
-            for (_, subscriber) in subscribers.iter_mut() {
-                let mut disconnected_pid: Vec<u32> = Vec::new();
-                for (pid, stream) in subscriber.iter_mut() {
-                    let msg = "Test connection".to_string();
-                    match stream.write_all(msg.as_bytes()).await {
-                        Ok(_) => {
-                            println!("Client {} is alive.", pid);
-                        }
-                        Err(e) => {
-                            println!("Client {} is no longer alive. Error: {}", pid, e);
-                            disconnected_pid.push(pid.clone());
-                        }
-                    }
-                }
-
-                // Remove disconnected_pid
-                for pid in disconnected_pid {
-                    subscriber.remove(&pid);
-                }
-            }
-            // Release server state
-        }
-
-        sleep(Duration::from_secs(2)).await;
-    }
 }

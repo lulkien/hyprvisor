@@ -41,7 +41,6 @@ impl Client {
                 return;
             }
         };
-        println!("Send: {}", subscription_msg);
 
         stream
             .write_all(subscription_msg.as_bytes())

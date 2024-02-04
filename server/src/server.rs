@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
+use tokio::io::AsyncWriteExt;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::Mutex;
 
 use crate::common::{HyprvisorListener, Subscribers, SubscriptionID, SubscriptionInfo};
-use crate::hypr_listener::HyprListener;
+use crate::hypr_listener::{get_active_window_json, get_current_workspaces_json, HyprListener};
 
 pub struct Server {
     socket: String,
@@ -83,7 +84,7 @@ impl Server {
     }
 }
 
-async fn handle_new_connection(stream: UnixStream, subscribers: Arc<Mutex<Subscribers>>) {
+async fn handle_new_connection(mut stream: UnixStream, subscribers: Arc<Mutex<Subscribers>>) {
     // Handle new connection
     let mut buffer: [u8; 1024] = [0; 1024];
     let bytes_received = match stream.try_read(&mut buffer) {
@@ -117,14 +118,24 @@ async fn handle_new_connection(stream: UnixStream, subscribers: Arc<Mutex<Subscr
             subscribers.entry(subscription_id).or_insert(HashMap::new());
 
             println!(
-                "New client with PID {} subscribed to {}",
+                "New client with PID {} subscribed to {} -> Send init data",
                 info.pid, info.subscription_id
             );
 
-            subscribers
-                .get_mut(&subscription_id)
-                .unwrap()
-                .insert(info.pid, stream);
+            let init_data = match subscription_id {
+                SubscriptionID::Workspace => get_current_workspaces_json().await,
+                SubscriptionID::Window => get_active_window_json().await,
+                _ => {
+                    return;
+                }
+            };
+
+            if let Ok(_) = stream.write_all(init_data.as_bytes()).await {
+                subscribers
+                    .get_mut(&subscription_id)
+                    .unwrap()
+                    .insert(info.pid, stream);
+            }
         }
 
         Err(e) => {

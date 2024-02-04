@@ -39,12 +39,14 @@ pub(crate) trait HyprvisorListener {
 }
 
 #[allow(dead_code)]
+#[derive(PartialEq)]
 pub(crate) enum HyprEvent {
-    WorkspaceCreated(String),
-    WorkspaceChanged(String),
-    WorkspaceDestroyed(String),
-    WindowChanged((String, String)),
-    Window2Changed(String),
+    WorkspaceCreated,
+    WorkspaceChanged,
+    WorkspaceDestroyed,
+    WindowChanged,
+    Window2Changed,
+    InvalidEvent,
     // More events will be handle in the future
 }
 
@@ -53,6 +55,7 @@ pub(crate) struct WorkspaceInfo {
     pub id: u32,
     pub name: String,
     pub monitor: String,
+    pub occupied: bool,
     pub active: bool,
 }
 
@@ -62,6 +65,7 @@ impl WorkspaceInfo {
             id: 0,
             name: "".to_string(),
             monitor: "".to_string(),
+            occupied: false,
             active: false,
         }
     }

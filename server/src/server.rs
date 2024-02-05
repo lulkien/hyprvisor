@@ -6,7 +6,7 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::Mutex;
 
 use crate::common::{HyprvisorListener, Subscribers, SubscriptionID, SubscriptionInfo};
-use crate::hypr_listener::{get_active_window_json, get_current_workspaces_json, HyprListener};
+use crate::hypr_listener::{get_active_window, get_current_workspaces, HyprListener};
 
 pub struct Server {
     socket: String,
@@ -122,9 +122,15 @@ async fn handle_new_connection(mut stream: UnixStream, subscribers: Arc<Mutex<Su
                 info.pid, info.subscription_id
             );
 
-            let init_data = match subscription_id {
-                SubscriptionID::Workspace => get_current_workspaces_json().await,
-                SubscriptionID::Window => get_active_window_json().await,
+            let init_data: String = match subscription_id {
+                SubscriptionID::Workspace => {
+                    let workspaces = get_current_workspaces().await;
+                    serde_json::to_string(&workspaces).unwrap()
+                }
+                SubscriptionID::Window => {
+                    let window = get_active_window().await;
+                    serde_json::to_string(&window).unwrap()
+                }
                 _ => {
                     return;
                 }

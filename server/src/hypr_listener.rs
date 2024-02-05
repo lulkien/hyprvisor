@@ -10,14 +10,20 @@ use crate::common::{
     HyprEvent, HyprvisorListener, Subscribers, SubscriptionID, WindowInfo, WorkspaceInfo,
 };
 
-pub struct HyprListener {}
+pub struct HyprListener {
+    current_window: WindowInfo,
+    current_workspace: Vec<WorkspaceInfo>,
+}
 
 impl HyprListener {
     pub fn new() -> Self {
-        HyprListener {}
+        HyprListener {
+            current_window: WindowInfo::new(),
+            current_workspace: Vec::new(),
+        }
     }
 
-    pub fn get_hyprland_command_socket() -> Option<String> {
+    fn get_hyprland_command_socket() -> Option<String> {
         match env::var("HYPRLAND_INSTANCE_SIGNATURE") {
             Ok(value) => Some(format!("/tmp/hypr/{}/.socket.sock", value)),
             Err(_) => {
@@ -27,7 +33,7 @@ impl HyprListener {
         }
     }
 
-    pub fn get_hyprland_event_socket() -> Option<String> {
+    fn get_hyprland_event_socket() -> Option<String> {
         match env::var("HYPRLAND_INSTANCE_SIGNATURE") {
             Ok(value) => Some(format!("/tmp/hypr/{}/.socket2.sock", value)),
             Err(_) => {
@@ -39,9 +45,7 @@ impl HyprListener {
 }
 
 impl HyprvisorListener for HyprListener {
-    fn prepare_listener(&mut self) {
-        // Do something in the future
-    }
+    fn prepare_listener(&mut self) {}
 
     async fn start_listener(&mut self, subscribers: Arc<Mutex<Subscribers>>) {
         let listen_socket = match HyprListener::get_hyprland_event_socket() {
@@ -64,14 +68,26 @@ impl HyprvisorListener for HyprListener {
             match stream.read(&mut buffer).await {
                 Ok(size) if size > 0 => {
                     let events = process_event(&buffer[..size]);
-                    if events.contains(&HyprEvent::WorkspaceChanged) {
-                        let subscribers_ref = Arc::clone(&subscribers);
-                        tokio::spawn(broadcast_workspaces_info(subscribers_ref));
-                    }
-
                     if events.contains(&HyprEvent::WindowChanged) {
-                        let subscribers_ref = Arc::clone(&subscribers);
-                        tokio::spawn(broadcast_window_info(subscribers_ref));
+                        let window_info = get_active_window().await;
+                        if self.current_window != window_info {
+                            self.current_window = window_info.clone();
+                            let win_subscriber_arc = Arc::clone(&subscribers);
+                            let win_info_arc: Arc<WindowInfo> = Arc::new(window_info);
+                            tokio::spawn(broadcast_window_info(win_info_arc, win_subscriber_arc));
+                        }
+
+                        // Window change? Just update the workspace too
+                        let ws_info = get_current_workspaces().await;
+                        if self.current_workspace != ws_info {
+                            self.current_workspace = ws_info.clone();
+                            let ws_subscriber_arc = Arc::clone(&subscribers);
+                            let ws_info_arc: Arc<Vec<WorkspaceInfo>> = Arc::new(ws_info);
+                            tokio::spawn(broadcast_workspaces_info(ws_info_arc, ws_subscriber_arc));
+                        }
+                    } else if events.contains(&HyprEvent::WorkspaceChanged) {
+                        // let subscribers_ref = Arc::clone(&subscribers);
+                        // tokio::spawn(broadcast_workspaces_info(subscribers_ref));
                     }
                 }
                 Ok(_) | Err(_) => {
@@ -84,7 +100,7 @@ impl HyprvisorListener for HyprListener {
 }
 
 fn process_event(buffer: &[u8]) -> Vec<HyprEvent> {
-    String::from_utf8_lossy(buffer)
+    let mut evt_list: Vec<HyprEvent> = String::from_utf8_lossy(buffer)
         .lines()
         .map(|line| {
             let mut parts = line.splitn(2, ">>");
@@ -102,18 +118,24 @@ fn process_event(buffer: &[u8]) -> Vec<HyprEvent> {
                 _ => HyprEvent::InvalidEvent,
             }
         })
-        .collect()
+        .collect();
+    evt_list.dedup();
+    evt_list
 }
 
-async fn broadcast_window_info(subscribers: Arc<Mutex<Subscribers>>) {
-    let window_json = get_active_window_json().await;
+async fn broadcast_window_info(
+    window_info_arc: Arc<WindowInfo>,
+    subscribers_arc: Arc<Mutex<Subscribers>>,
+) {
+    let window_info = window_info_arc.deref();
+    let window_json = serde_json::to_string(window_info).unwrap();
 
     let mut disconnected_pid = Vec::new();
-    let mut subscribers = subscribers.lock().await;
+    let mut subscribers = subscribers_arc.lock().await;
     if let Some(win_subscribers) = subscribers.get_mut(&SubscriptionID::Window) {
         for (pid, stream) in win_subscribers.iter_mut() {
             if let Err(_) = stream.write_all(window_json.as_bytes()).await {
-                println!("Client {} is dead. Remove later", pid);
+                println!("Client {} is disconnected. Remove later", pid);
                 disconnected_pid.push(*pid);
             }
         }
@@ -124,26 +146,26 @@ async fn broadcast_window_info(subscribers: Arc<Mutex<Subscribers>>) {
     }
 }
 
-pub async fn get_active_window_json() -> String {
+pub async fn get_active_window() -> WindowInfo {
     // TODO: Improve in the future
-    let mut json_data = "{}".to_string();
+    let mut window_info = WindowInfo::new();
 
     let cmd_sock = match HyprListener::get_hyprland_command_socket() {
         Some(value) => value,
-        None => return json_data,
+        None => return window_info,
     };
 
     let mut stream = match UnixStream::connect(&cmd_sock).await {
         Ok(stream) => stream,
         Err(err) => {
             eprintln!("Error: {err}");
-            return json_data;
+            return window_info;
         }
     };
 
     if let Err(e) = stream.write_all(b"activewindow").await {
         eprintln!("Failed to get activewindow. Error: {e}");
-        return json_data;
+        return window_info;
     }
 
     let mut response: String = String::new();
@@ -157,10 +179,8 @@ pub async fn get_active_window_json() -> String {
         }
     }
 
-    let window_info = parse_window_data(&response);
-    json_data = serde_json::to_string(&window_info).unwrap();
-
-    json_data
+    window_info = parse_window_data(&response);
+    window_info
 }
 
 fn parse_window_data(raw_data: &str) -> WindowInfo {
@@ -185,15 +205,19 @@ fn parse_window_data(raw_data: &str) -> WindowInfo {
     window_info
 }
 
-async fn broadcast_workspaces_info(subscribers: Arc<Mutex<Subscribers>>) {
-    let workspaces_json = get_current_workspaces_json().await;
+async fn broadcast_workspaces_info(
+    workspace_info_arc: Arc<Vec<WorkspaceInfo>>,
+    subscribers_arc: Arc<Mutex<Subscribers>>,
+) {
+    let workspaces_info = workspace_info_arc.deref();
+    let workspaces_json = serde_json::to_string(&workspaces_info).unwrap();
 
     let mut disconnected_pid = Vec::new();
-    let mut subscribers = subscribers.lock().await;
+    let mut subscribers = subscribers_arc.lock().await;
     if let Some(ws_subscribers) = subscribers.get_mut(&SubscriptionID::Workspace) {
         for (pid, stream) in ws_subscribers.iter_mut() {
             if let Err(_) = stream.write_all(workspaces_json.as_bytes()).await {
-                println!("Client {} is dead. Remove later", pid);
+                println!("Client {} is disconnected. Remove later", pid);
                 disconnected_pid.push(*pid);
             }
         }
@@ -204,11 +228,12 @@ async fn broadcast_workspaces_info(subscribers: Arc<Mutex<Subscribers>>) {
     }
 }
 
-pub async fn get_current_workspaces_json() -> String {
+pub async fn get_current_workspaces() -> Vec<WorkspaceInfo> {
     // TODO: Improve how we get the command socket path
+    let mut ws_list: Vec<WorkspaceInfo> = Vec::new();
     let cmd_sock = match HyprListener::get_hyprland_command_socket() {
         Some(value) => Arc::new(value),
-        None => return "{}".to_string(),
+        None => return ws_list,
     };
     let active_workspace: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
     let all_workspaces: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
@@ -299,13 +324,12 @@ pub async fn get_current_workspaces_json() -> String {
         active_workspace_info.active = true;
     }
 
-    let mut ws_list: Vec<WorkspaceInfo> = Vec::new();
     for (_, ws_data) in workspace_table.into_iter() {
         ws_list.push(ws_data);
     }
     ws_list.sort_by(|a, b| a.id.cmp(&b.id));
 
-    serde_json::to_string(&ws_list).unwrap_or("{}".to_string())
+    ws_list
 }
 
 fn parse_workspace_data(raw_data: &str) -> (u32, WorkspaceInfo) {
@@ -322,7 +346,6 @@ fn parse_workspace_data(raw_data: &str) -> (u32, WorkspaceInfo) {
                 ws.id = capture[1].parse::<u32>().unwrap_or(1);
                 ws_id = ws.id.clone();
                 ws.name = capture[2].to_string();
-                ws.monitor = capture[3].to_string();
             });
         } else if window_regex.is_match(&line) {
             window_regex.captures(&line).map(|capture| {

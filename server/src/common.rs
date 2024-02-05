@@ -50,11 +50,10 @@ pub(crate) enum HyprEvent {
     // More events will be handle in the future
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub(crate) struct WorkspaceInfo {
     pub id: u32,
     pub name: String,
-    pub monitor: String,
     pub occupied: bool,
     pub active: bool,
 }
@@ -64,14 +63,13 @@ impl WorkspaceInfo {
         WorkspaceInfo {
             id: 0,
             name: "".to_string(),
-            monitor: "".to_string(),
             occupied: false,
             active: false,
         }
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub(crate) struct WindowInfo {
     pub class: String,
     pub title: String,

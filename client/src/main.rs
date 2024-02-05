@@ -13,13 +13,16 @@ async fn main() {
 
     // Prepare client data
     let client_pid: u32 = process::id();
-    let mut extra_data: Option<u8> = None;
+    let mut extra_data: Option<u32> = None;
     let sub_id = match &cli.command {
         Commands::Workspace { fix } => {
             extra_data = *fix;
             SubscriptionID::Workspace
         }
-        Commands::Window => SubscriptionID::Window,
+        Commands::Window { max_char } => {
+            extra_data = *max_char;
+            SubscriptionID::Window
+        }
         Commands::SinkVolume => SubscriptionID::SinkVolume,
         Commands::SourceVolume => SubscriptionID::SourceVolume,
     };

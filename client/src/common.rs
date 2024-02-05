@@ -12,9 +12,9 @@ pub(crate) struct Cli {
 #[derive(Subcommand)]
 pub(crate) enum Commands {
     /// Listen to Hyprland's workspaces changed
-    Workspace { fix: Option<u8> },
+    Workspace { fix: Option<u32> },
     /// Listen to focused Hyprland's window changed
-    Window,
+    Window { max_char: Option<u32> },
     /// Listen to sink volume changed
     SinkVolume,
     /// Listen to source volume changed
@@ -34,4 +34,18 @@ pub(crate) enum SubscriptionID {
 pub(crate) struct SubscriptionInfo {
     pub pid: u32,
     pub subscription_id: SubscriptionID,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct WorkspaceInfo {
+    pub id: u32,
+    pub name: String,
+    pub occupied: bool,
+    pub active: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct WindowInfo {
+    pub class: String,
+    pub title: String,
 }

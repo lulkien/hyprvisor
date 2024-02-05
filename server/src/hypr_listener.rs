@@ -85,9 +85,16 @@ impl HyprvisorListener for HyprListener {
                             let ws_info_arc: Arc<Vec<WorkspaceInfo>> = Arc::new(ws_info);
                             tokio::spawn(broadcast_workspaces_info(ws_info_arc, ws_subscriber_arc));
                         }
-                    } else if events.contains(&HyprEvent::WorkspaceChanged) {
-                        // let subscribers_ref = Arc::clone(&subscribers);
-                        // tokio::spawn(broadcast_workspaces_info(subscribers_ref));
+                    } else if events.contains(&HyprEvent::WorkspaceCreated)
+                        || events.contains(&HyprEvent::WorkspaceDestroyed)
+                    {
+                        let ws_info = get_current_workspaces().await;
+                        if self.current_workspace != ws_info {
+                            self.current_workspace = ws_info.clone();
+                            let ws_subscriber_arc = Arc::clone(&subscribers);
+                            let ws_info_arc: Arc<Vec<WorkspaceInfo>> = Arc::new(ws_info);
+                            tokio::spawn(broadcast_workspaces_info(ws_info_arc, ws_subscriber_arc));
+                        }
                     }
                 }
                 Ok(_) | Err(_) => {

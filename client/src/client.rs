@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-
-use serde_json::Error;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
@@ -22,62 +21,61 @@ impl Client {
         }
     }
 
-    pub async fn connect(self, socket_path: String) {
-        let mut stream = match UnixStream::connect(&socket_path).await {
-            Ok(stream) => stream,
-            Err(e) => {
-                eprintln!(
-                    "Failed to connect to Unix socket: {} | Error: {}",
-                    socket_path, e
-                );
-                return;
-            }
-        };
-
-        let subscription_msg: String = match create_subscribe_message(&self.client_info) {
-            Ok(msg) => msg,
-            Err(e) => {
-                eprintln!("Failed to create message. Error: {}", e);
-                return;
-            }
-        };
-
-        stream
-            .write_all(subscription_msg.as_bytes())
-            .await
-            .expect("Failed to write subscription type");
-
-        // Continuously listen for responses from the server
-        loop {
-            let mut response_buffer: [u8; 8192] = [0; 8192]; // Adjust the buffer size based on your expected message size
-            let bytes_received = match stream.read(&mut response_buffer).await {
-                Ok(bytes) => bytes,
+    pub async fn connect(self, socket_path: String, max_tries: usize) {
+        let mut retries: usize = 0;
+        while retries < max_tries {
+            let mut stream: UnixStream = match UnixStream::connect(&socket_path).await {
+                Ok(stream) => stream,
                 Err(e) => {
-                    println!("Error reading from server: {}", e);
-                    break;
+                    eprintln!("Failed to connect to Unix socket: {socket_path} | Error: {e}");
+                    retries += 1;
+                    if retries < max_tries {
+                        eprintln!("Attempt {retries}/{max_tries}. Retrying...");
+                        tokio::time::sleep(Duration::from_millis(300)).await;
+                        continue;
+                    } else {
+                        eprintln!("Cannot establish connection to socket {socket_path}.");
+                        return;
+                    }
                 }
             };
 
-            if bytes_received == 0 {
-                break;
+            let subscription_msg = match serde_json::to_string(&self.client_info) {
+                Ok(msg) => msg,
+                Err(e) => {
+                    eprintln!("Failed to create message. Error: {}", e);
+                    return;
+                }
+            };
+
+            if let Err(e) = stream.write_all(subscription_msg.as_bytes()).await {
+                eprintln!("Failed to write subscription type. Error: {}", e);
+                return;
             }
 
-            let mut response_message =
-                String::from_utf8_lossy(&response_buffer[..bytes_received]).to_string();
+            loop {
+                let mut response_buffer: [u8; 8192] = [0; 8192];
+                let bytes_received = match stream.read(&mut response_buffer).await {
+                    Ok(size) if size > 0 => size,
+                    Ok(_) | Err(_) => {
+                        eprintln!("Error reading from server.");
+                        return;
+                    }
+                };
 
-            response_message = reformat_response(
-                &response_message,
-                &self.client_info.subscription_id,
-                &self.extra_data,
-            );
+                let mut response_message =
+                    String::from_utf8_lossy(&response_buffer[..bytes_received]).to_string();
 
-            println!("{}", response_message);
+                response_message = reformat_response(
+                    &response_message,
+                    &self.client_info.subscription_id,
+                    &self.extra_data,
+                );
+
+                println!("{response_message}");
+            }
         }
     }
-}
-
-fn create_subscribe_message(info: &SubscriptionInfo) -> Result<String, Error> {
-    serde_json::to_string(info)
 }
 
 fn reformat_response(
@@ -85,76 +83,54 @@ fn reformat_response(
     subscription_id: &SubscriptionID,
     extra_data: &Option<u32>,
 ) -> String {
-    if extra_data.is_none() || extra_data.unwrap() < 1 {
+    if extra_data.map_or(true, |val| val < 1) {
         return response_data.to_string();
     }
 
-    let mut formated_response = response_data.to_string();
+    let mut formatted_response = response_data.to_string();
 
     match subscription_id {
         SubscriptionID::Window => {
-            let mut window_info: WindowInfo = match serde_json::from_str(response_data) {
+            let window_info: Result<WindowInfo, _> = serde_json::from_str(response_data);
+            let mut window_info = match window_info {
                 Ok(value) => value,
-                Err(_) => {
-                    return "{}".to_string();
-                }
+                Err(_) => return "{}".to_string(),
             };
-
-            let mut title = window_info.title;
-
-            if extra_data.unwrap() > title.len() as u32 {
-                return formated_response;
+            if let Some(title) = window_info.title.get(..extra_data.unwrap() as usize) {
+                window_info.title = format!("{}...", String::from_utf8_lossy(title.as_bytes()));
+                formatted_response = serde_json::to_string(&window_info).unwrap();
             }
-
-            title = format!(
-                "{}...",
-                String::from_utf8_lossy(&title.as_bytes()[..extra_data.unwrap() as usize])
-            );
-            window_info.title = title;
-            formated_response = serde_json::to_string(&window_info).unwrap();
-            formated_response
         }
         SubscriptionID::Workspace => {
-            let mut ws_list: Vec<WorkspaceInfo> = match serde_json::from_str(response_data) {
+            let ws_list: Result<Vec<WorkspaceInfo>, _> = serde_json::from_str(response_data);
+            let mut ws_list = match ws_list {
                 Ok(list) => list,
-                Err(_) => {
-                    return formated_response;
-                }
+                Err(_) => return formatted_response,
             };
 
-            if extra_data.unwrap() < ws_list.len() as u32 {
-                return formated_response;
+            if ws_list.len() > extra_data.unwrap() as usize {
+                return formatted_response;
             }
 
-            let mut ws_table: HashMap<u32, WorkspaceInfo> = HashMap::new();
-            for ws in &ws_list {
-                ws_table.insert(ws.id, ws.clone());
-            }
+            let mut ws_table: HashMap<u32, WorkspaceInfo> =
+                ws_list.clone().into_iter().map(|ws| (ws.id, ws)).collect();
 
             for id in 1..=extra_data.unwrap() {
-                if !ws_table.contains_key(&id) {
-                    let empty_ws = WorkspaceInfo {
-                        id,
-                        name: id.to_string(),
-                        occupied: false,
-                        active: false,
-                    };
-                    ws_table.insert(id, empty_ws);
-                }
+                ws_table.entry(id).or_insert_with(|| WorkspaceInfo {
+                    id,
+                    name: id.to_string(),
+                    occupied: false,
+                    active: false,
+                });
             }
 
             ws_list.clear();
-            for (_, ws) in ws_table.into_iter() {
-                ws_list.push(ws);
-            }
+            ws_list = ws_table.into_iter().map(|(_, ws)| ws).collect();
             ws_list.sort_by(|a, b| a.id.cmp(&b.id));
 
-            formated_response = serde_json::to_string(&ws_list).unwrap();
-            formated_response
+            formatted_response = serde_json::to_string(&ws_list).unwrap();
         }
-        _ => {
-            formated_response = response_data.to_string();
-            formated_response
-        }
+        _ => (),
     }
+    formatted_response
 }

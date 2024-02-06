@@ -33,5 +33,6 @@ async fn main() {
         .unwrap_or_else(|_| "/tmp/hyprvisor.sock".to_string());
 
     let client = Client::new(client_pid, sub_id, extra_data);
-    client.connect(socket_path).await;
+    let max_retries: usize = 5;
+    client.connect(socket_path, max_retries).await;
 }

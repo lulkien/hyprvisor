@@ -1,4 +1,4 @@
-# Hyprvisor
+ # Hyprvisor
 
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-cyan.svg)](http://unlicense.org/)
 [![Hyprland](https://img.shields.io/badge/Made%20for-Hyprland-blue.svg)](https://github.com/hyprwm/Hyprland)
@@ -79,29 +79,27 @@ cargo install --path .
 
 ### [My personal dotfiles](https://github.com/lulkien/dotfiles)
 
-- [$HOME/.config/hypr/scripts/start-hyprvisor.sh](https://github.com/lulkien/dotfiles/blob/hyprland/home/.config/hypr/scripts/start-hyprvisor.sh)
+- [$HOME/.config/hypr/scripts/start-hyprvisor.sh](https://github.com/lulkien/dotfiles/blob/master/config/hypr/scripts/start-hyprvisor.sh)
 
   ```bash
   #!/usr/bin/env bash
 
-  # Killall instances of hyprvisor-server and start a new one.
   killall hyprvisor-server
   ~/.cargo/bin/hyprvisor-server &
-
-  sleep 0.2
-  eww daemon &
-  eww -c ~/.config/eww/widgets/power-overlay daemon &
-  eww -c ~/.config/eww/widgets/quick-control daemon &
-
-  sleep 0.2
-  eww open bar &
   ```
 
-- [$HOME/.config/hypr/hyprland.conf](https://github.com/lulkien/dotfiles/blob/hyprland/home/.config/hypr/hyprland.conf)
+- [$HOME/.config/hypr/hyprland.conf](https://github.com/lulkien/dotfiles/blob/master/config/hypr/hyprland.conf)
   ```bash
   # Your config
   ...
+  # Start hyprvisor server, this is a backend for some EWW widgets
   exec-once = ~/.config/hypr/scripts/start-hyprvisor.sh
+
+  # Start EWW
+  exec-once = eww daemon
+  exec-once = eww -c ~/.config/eww/widgets/power-overlay daemon
+  exec-once = eww -c ~/.config/eww/widgets/quick-control daemon
+  exec-once = eww open bar
   ...
   # Your config
   ```

@@ -1,5 +1,6 @@
 # Hyprvisor
 
+![Build](https://github.com/lulkien/hyprvisor/actions/workflows/rust.yml/badge.svg)
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](http://unlicense.org/)
 [![Hyprland](https://img.shields.io/badge/Made%20for-Hyprland-blue)](https://github.com/hyprwm/Hyprland)
 

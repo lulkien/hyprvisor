@@ -36,13 +36,11 @@ impl Server {
             Ok(_) => {
                 eprintln!("There is a running server bind on {}", self.socket);
                 self.is_ready = Some(false);
-                return;
             }
             _ => match fs::remove_file(&self.socket) {
                 Ok(_) => {
                     println!("Remove old socket {}", self.socket);
                     self.is_ready = Some(true);
-                    return;
                 }
                 Err(e) => {
                     println!(
@@ -50,7 +48,6 @@ impl Server {
                         self.socket, e
                     );
                     self.is_ready = Some(false);
-                    return;
                 }
             },
         }

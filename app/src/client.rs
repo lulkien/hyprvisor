@@ -4,7 +4,10 @@ use tokio::{
 };
 
 use crate::opts::{ServerCommand, Subscription};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 pub type Subscriber = HashMap<Subscription, HashSet<UnixStream>>;
 
@@ -21,32 +24,44 @@ impl Client {
         }
     }
 
-    pub async fn connect(&mut self) {}
+    pub async fn connect(&mut self) {
+        let mut connection = match try_connect(&self.socket, 5, 500).await {
+            Some(connection) => connection,
+            None => {
+                log::error!("Failed to connect to socket: {}", self.socket);
+                return;
+            }
+        };
+
+        let message: String = serde_json::to_string(&self.subscription).unwrap();
+        connection
+            .write_all(message.as_bytes())
+            .await
+            .expect("Failed to write message to socket");
+    }
 }
 
-async fn attempt_connect(socket_path: &str, attempt: usize) -> Option<UnixStream> {
+async fn try_connect(socket_path: &str, attempts: usize, attempt_delay: u64) -> Option<UnixStream> {
+    for attempt in 0..attempts {
+        log::debug!("Attempt: {}", attempt + 1);
+        if let Ok(stream) = UnixStream::connect(socket_path).await {
+            return Some(stream);
+        }
+        tokio::time::sleep(Duration::from_millis(attempt_delay)).await;
+    }
     None
 }
 
 pub async fn send_server_command(socket_path: &str, command: &ServerCommand) -> bool {
-    let mut stream = match UnixStream::connect(socket_path).await {
-        Ok(stream) => stream,
-        Err(e) => {
-            log::error!("Cannot connect to socket {socket_path}. Error: {e}");
+    let mut stream = match try_connect(socket_path, 5, 200).await {
+        Some(stream) => stream,
+        None => {
+            log::warn!("Cannot connect to socket: {socket_path}");
             return false;
         }
     };
 
-    let message = match serde_json::to_string(&command) {
-        Ok(msg) => msg,
-        Err(e) => {
-            log::error!(
-                "Failed to create message from command: {:?}. Error: {e}",
-                command
-            );
-            return false;
-        }
-    };
+    let message = serde_json::to_string(&command).unwrap();
 
     if let Err(e) = stream.write_all(message.as_bytes()).await {
         log::error!("Failed to write message to socket. Error: {e}");

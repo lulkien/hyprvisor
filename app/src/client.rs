@@ -1,26 +1,31 @@
+use crate::{
+    common_types::SubscriptionID,
+    opts::{ServerCommand, Subscription},
+};
+use std::time::Duration;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::UnixStream,
 };
 
-use crate::opts::{ServerCommand, Subscription};
-use std::{
-    collections::{HashMap, HashSet},
-    time::Duration,
-};
-
-pub type Subscriber = HashMap<Subscription, HashSet<UnixStream>>;
-
 pub struct Client {
     socket: String,
-    subscription: Subscription,
+    subscription_id: SubscriptionID,
+    subscription_ext: Option<u32>,
 }
 
 impl Client {
     pub fn new(socket: String, subscription: Subscription) -> Self {
+        let (subscription_id, subscription_ext) = match subscription {
+            Subscription::Workspaces { fix_workspace } => {
+                (SubscriptionID::Workspaces, fix_workspace)
+            }
+            Subscription::Window { title_length } => (SubscriptionID::Window, title_length),
+        };
         Client {
             socket,
-            subscription,
+            subscription_id,
+            subscription_ext,
         }
     }
 
@@ -33,7 +38,7 @@ impl Client {
             }
         };
 
-        let message: String = serde_json::to_string(&self.subscription).unwrap();
+        let message: String = serde_json::to_string(&self.subscription_id).unwrap();
         connection
             .write_all(message.as_bytes())
             .await

@@ -1,12 +1,12 @@
 mod client;
+mod common_types;
 mod opts;
 mod server;
 mod server_response;
 mod utils;
 
-use std::fs;
-
 use opts::{Action, Opts, ServerCommand, Subscription};
+use std::fs;
 use utils::get_socket_path;
 
 #[tokio::main]

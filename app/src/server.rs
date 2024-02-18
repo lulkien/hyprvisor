@@ -5,8 +5,8 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::Mutex;
 
-use crate::client::Subscriber;
-use crate::opts::{ServerCommand, Subscription};
+use crate::common_types::{Subscriber, SubscriptionID};
+use crate::opts::ServerCommand;
 
 pub struct Server {
     socket: String,
@@ -63,7 +63,7 @@ async fn handle_new_connection(mut stream: UnixStream, subscribers: Arc<Mutex<Su
     log::info!("Message: {}", message);
 
     let command: Option<ServerCommand> = serde_json::from_str(&message).unwrap_or(None);
-    let subscription: Option<Subscription> = serde_json::from_str(&message).unwrap_or(None);
+    let subscription: Option<SubscriptionID> = serde_json::from_str(&message).unwrap_or(None);
 
     if let Some(cmd) = command {
         match cmd {

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::Mutex;
 
@@ -68,12 +68,12 @@ async fn handle_new_connection(mut stream: UnixStream, subscribers: Arc<Mutex<Su
     if let Some(cmd) = command {
         match cmd {
             ServerCommand::Kill => {
-                let _ = stream.write(b"Server is shuting down...").await;
-                let _ = tokio::time::sleep(Duration::from_millis(100)).await;
+                let _ = stream.write_all(b"Server is shuting down...").await;
+                tokio::time::sleep(Duration::from_millis(100)).await;
                 std::process::exit(0);
             }
             ServerCommand::Ping => {
-                let _ = stream.write(b"Pong").await;
+                let _ = stream.write_all(b"Pong").await;
             }
         }
 

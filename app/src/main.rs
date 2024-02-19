@@ -5,7 +5,7 @@ mod server;
 mod server_response;
 mod utils;
 
-use opts::{Action, Opts, ServerCommand, Subscription};
+use opts::{Action, Opts, ServerCommand, SubscriptionOpts};
 use std::fs;
 use utils::get_socket_path;
 
@@ -46,14 +46,14 @@ async fn run(opts: &Opts) {
             if !server_running {
                 return;
             }
-            client::send_server_command(&socket_path, command).await;
+            client::send_server_command(&socket_path, command, 3).await;
         }
         Action::Listen(subs_info) => {
             if !server_running {
                 return;
             }
             let subscription = match subs_info {
-                Subscription::Workspaces { fix_workspace } => Subscription::Workspaces {
+                SubscriptionOpts::Workspaces { fix_workspace } => SubscriptionOpts::Workspaces {
                     fix_workspace: fix_workspace
                         .map(|fw| {
                             log::warn!(
@@ -65,7 +65,7 @@ async fn run(opts: &Opts) {
                         })
                         .unwrap_or(None),
                 },
-                Subscription::Window { title_length } => Subscription::Window {
+                SubscriptionOpts::Window { title_length } => SubscriptionOpts::Window {
                     title_length: title_length
                         .map(|tl| {
                             log::warn!(
@@ -92,7 +92,7 @@ async fn check_server_alive(socket_path: &str) -> bool {
         return false;
     }
 
-    let is_alive = client::send_server_command(socket_path, &ServerCommand::Ping).await;
+    let is_alive = client::send_server_command(socket_path, &ServerCommand::Ping, 1).await;
 
     if !is_alive {
         if let Err(e) = fs::remove_file(socket_path) {

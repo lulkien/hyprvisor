@@ -28,7 +28,7 @@ pub enum Action {
     Command(ServerCommand),
 
     #[command(flatten)]
-    Listen(Subscription),
+    Listen(SubscriptionOpts),
 }
 
 #[derive(Debug, Deserialize, Serialize, Subcommand, PartialEq)]
@@ -41,7 +41,7 @@ pub enum ServerCommand {
 }
 
 #[derive(Debug, Deserialize, Serialize, Subcommand, PartialEq)]
-pub enum Subscription {
+pub enum SubscriptionOpts {
     #[command(name = "workspaces", alias = "ws")]
     Workspaces { fix_workspace: Option<u32> },
 

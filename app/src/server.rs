@@ -1,12 +1,13 @@
-use std::sync::Arc;
-use std::time::Duration;
-
-use tokio::io::AsyncWriteExt;
-use tokio::net::{UnixListener, UnixStream};
-use tokio::sync::Mutex;
-
-use crate::common_types::{Subscriber, SubscriptionID};
-use crate::opts::ServerCommand;
+use crate::{
+    common_types::{ClientInfo, Subscriber},
+    opts::ServerCommand,
+};
+use std::{collections::HashMap, sync::Arc, time::Duration};
+use tokio::{
+    io::AsyncWriteExt,
+    net::{UnixListener, UnixStream},
+    sync::Mutex,
+};
 
 pub struct Server {
     socket: String,
@@ -44,7 +45,7 @@ impl Server {
     }
 }
 
-async fn handle_new_connection(mut stream: UnixStream, subscribers: Arc<Mutex<Subscriber>>) {
+async fn handle_new_connection(mut stream: UnixStream, subscribers_ref: Arc<Mutex<Subscriber>>) {
     let mut buffer: [u8; 1024] = [0; 1024];
     let bytes_received = match stream.try_read(&mut buffer) {
         Ok(message_len) => message_len,
@@ -59,11 +60,11 @@ async fn handle_new_connection(mut stream: UnixStream, subscribers: Arc<Mutex<Su
         return;
     }
 
-    let message = String::from_utf8_lossy(&buffer[0..bytes_received]).to_string();
-    log::info!("Message: {}", message);
+    let client_message = String::from_utf8_lossy(&buffer[0..bytes_received]).to_string();
+    log::info!("Message from client: {}", client_message);
 
-    let command: Option<ServerCommand> = serde_json::from_str(&message).unwrap_or(None);
-    let subscription: Option<SubscriptionID> = serde_json::from_str(&message).unwrap_or(None);
+    let command: Option<ServerCommand> = serde_json::from_str(&client_message).unwrap_or(None);
+    let client: Option<ClientInfo> = serde_json::from_str(&client_message).unwrap_or(None);
 
     if let Some(cmd) = command {
         match cmd {
@@ -80,7 +81,24 @@ async fn handle_new_connection(mut stream: UnixStream, subscribers: Arc<Mutex<Su
         return;
     }
 
-    if let Some(subs) = subscription {
-        let subscribers = subscribers.lock();
+    if let Some(client_info) = client {
+        let mut subscribers = subscribers_ref.lock().await;
+        subscribers
+            .entry(client_info.subscription_id.clone())
+            .or_insert(HashMap::new());
+
+        log::info!(
+            "Client pid {} subscribe to {}",
+            client_info.process_id,
+            client_info.subscription_id
+        );
+
+        if stream.write_all(b"Hello").await.is_ok() {
+            log::info!("Hello");
+            subscribers
+                .get_mut(&client_info.subscription_id)
+                .unwrap()
+                .insert(client_info.process_id, stream);
+        }
     }
 }

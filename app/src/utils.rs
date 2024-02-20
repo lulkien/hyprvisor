@@ -1,4 +1,5 @@
-use std::env;
+use std::{env, time::Duration};
+use tokio::net::UnixStream;
 
 pub fn get_socket_path() -> String {
     env::var("XDG_RUNTIME_DIR")
@@ -26,4 +27,23 @@ pub fn get_hyprland_command_socket() -> Option<String> {
             None
         }
     }
+}
+
+pub async fn try_connect(
+    socket_path: &str,
+    attempts: usize,
+    attempt_delay: u64,
+) -> Option<UnixStream> {
+    for attempt in 0..attempts {
+        log::debug!(
+            "Connect to socket {} | Attempt: {}",
+            socket_path,
+            attempt + 1
+        );
+        if let Ok(stream) = UnixStream::connect(socket_path).await {
+            return Some(stream);
+        }
+        tokio::time::sleep(Duration::from_millis(attempt_delay)).await;
+    }
+    None
 }

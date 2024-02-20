@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result};
 use tokio::net::UnixStream;
 
+pub type Subscriber = HashMap<SubscriptionID, HashMap<u32, UnixStream>>;
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
 pub enum SubscriptionID {
     Workspaces,
@@ -33,4 +35,13 @@ impl ClientInfo {
     }
 }
 
-pub type Subscriber = HashMap<SubscriptionID, HashMap<u32, UnixStream>>;
+#[derive(PartialEq)]
+pub enum HyprEvent {
+    WorkspaceCreated,
+    WorkspaceChanged,
+    WorkspaceDestroyed,
+    WindowChanged,
+    Window2Changed,
+    InvalidEvent,
+    // More events will be handle in the future
+}

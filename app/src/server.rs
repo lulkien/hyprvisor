@@ -1,5 +1,6 @@
 use crate::{
     common_types::{ClientInfo, Subscriber},
+    hyprland_listener,
     opts::ServerCommand,
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -9,43 +10,35 @@ use tokio::{
     sync::Mutex,
 };
 
-pub struct Server {
-    socket: String,
-    subscribers: Arc<Mutex<Subscriber>>,
-}
+pub async fn start_server(socket: &str) {
+    log::info!("Starting hyprvisor server...");
+    let subscribers = Arc::new(Mutex::new(Subscriber::new()));
 
-impl Server {
-    pub fn new(socket: &str) -> Self {
-        Server {
-            socket: socket.to_string(),
-            subscribers: Arc::new(Mutex::new(Subscriber::new())),
+    let subscribers_ref = Arc::clone(&subscribers);
+    tokio::spawn(hyprland_listener::start_hyprland_listener(subscribers_ref));
+
+    let listener = match UnixListener::bind(socket) {
+        Ok(listener) => {
+            log::info!("Server is binded on socket {}", socket);
+            listener
         }
-    }
-
-    pub async fn start(&mut self) {
-        let listener = match UnixListener::bind(&self.socket) {
-            Ok(listener) => {
-                log::info!("Server is binded on socket {}", self.socket);
-                listener
-            }
-            Err(e) => {
-                log::error!(
-                    "Failed to bind listener on socket: {}. Error: {}",
-                    self.socket,
-                    e
-                );
-                return;
-            }
-        };
-
-        while let Ok((stream, _)) = listener.accept().await {
-            let subscriber_ref = Arc::clone(&self.subscribers);
-            tokio::spawn(handle_new_connection(stream, subscriber_ref));
+        Err(e) => {
+            log::error!(
+                "Failed to bind listener on socket: {}. Error: {}",
+                socket,
+                e
+            );
+            return;
         }
+    };
+
+    while let Ok((stream, _)) = listener.accept().await {
+        let subscriber_ref = Arc::clone(&subscribers);
+        tokio::spawn(handle_connection(stream, subscriber_ref));
     }
 }
 
-async fn handle_new_connection(mut stream: UnixStream, subscribers_ref: Arc<Mutex<Subscriber>>) {
+async fn handle_connection(mut stream: UnixStream, subscribers_ref: Arc<Mutex<Subscriber>>) {
     let mut buffer: [u8; 1024] = [0; 1024];
     let bytes_received = match stream.try_read(&mut buffer) {
         Ok(message_len) => message_len,

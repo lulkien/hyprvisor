@@ -1,50 +1,39 @@
 use crate::{
     client,
-    common_types::{HyprEvent, Subscriber},
-    opts::ServerCommand,
+    common_types::{HyprEvent, HyprSocketType, HyprWinInfo, Subscriber},
+    opts::CommandOpts,
     utils,
 };
 use std::sync::Arc;
-use tokio::{io::AsyncReadExt, sync::Mutex};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::UnixStream,
+    sync::Mutex,
+};
 
 pub async fn start_hyprland_listener(subscribers: Arc<Mutex<Subscriber>>) {
-    let event_socket = match utils::get_hyprland_event_socket() {
-        Some(sock) => sock,
-        None => return,
-    };
-
-    let mut event_listener = match utils::try_connect(&event_socket, 1, 500).await {
-        Some(stream) => stream,
-        None => return,
-    };
+    let event_socket = utils::get_hyprland_socket(&HyprSocketType::Event);
 
     log::info!("Start Hyprland event listener");
-
+    let mut event_listener = utils::try_connect(&event_socket, 1, 500).await.unwrap();
     let mut buffer: [u8; 8192] = [0; 8192];
+
     loop {
         match event_listener.read(&mut buffer).await {
-            Ok(bytes_received) if bytes_received > 0 => {
-                let events = process_event(&buffer[..bytes_received]);
-                if events.contains(&HyprEvent::WindowChanged) {
-                    let subscribers_ref = Arc::clone(&subscribers);
-                    handle_window_changed(subscribers_ref).await;
-                } else if events.contains(&HyprEvent::WorkspaceCreated)
-                    || events.contains(&HyprEvent::WorkspaceDestroyed)
-                {
-                    let subscribers_ref = Arc::clone(&subscribers);
-                    handle_workspace_changed(subscribers_ref).await;
-                }
+            Ok(bytes) if bytes > 0 => {
+                let events = parse_events(&buffer[..bytes]);
+                log::info!("{:?}", events);
             }
+
             Ok(_) | Err(_) => {
                 log::error!("Connection closed from Hyprland event socket");
-                client::send_server_command(&utils::get_socket_path(), &ServerCommand::Kill, 1)
-                    .await;
+                client::send_server_command(&utils::get_socket_path(), &CommandOpts::Kill, 1).await;
             }
         }
     }
 }
 
-fn process_event(buffer: &[u8]) -> Vec<HyprEvent> {
+fn parse_events(buffer: &[u8]) -> Vec<HyprEvent> {
     let mut evt_list: Vec<HyprEvent> = String::from_utf8_lossy(buffer)
         .lines()
         .map(|line| {
@@ -66,12 +55,4 @@ fn process_event(buffer: &[u8]) -> Vec<HyprEvent> {
         .collect();
     evt_list.dedup();
     evt_list
-}
-
-async fn handle_window_changed(_subscribers: Arc<Mutex<Subscriber>>) {
-    log::info!("WindowChanged");
-}
-
-async fn handle_workspace_changed(_subscribers: Arc<Mutex<Subscriber>>) {
-    log::info!("WorkspaceChanged");
 }

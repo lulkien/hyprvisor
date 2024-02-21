@@ -1,22 +1,22 @@
 use crate::{
     common_types::{ClientInfo, SubscriptionID},
-    opts::{ServerCommand, SubscriptionOpts},
+    opts::{CommandOpts, SubscribeOpts},
     utils,
 };
 use std::process;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[allow(unused)]
-pub async fn start_client(socket: &str, subscription_opts: &SubscriptionOpts) {
+pub async fn start_client(socket: &str, subscription_opts: &SubscribeOpts) {
     let (sub_id, data_format): (SubscriptionID, u32) = match subscription_opts {
-        SubscriptionOpts::Workspaces { fix_workspace } => (
+        SubscribeOpts::Workspaces { fix_workspace } => (
             SubscriptionID::Workspaces,
             fix_workspace.map_or(0, |fw| {
                 log::warn!("Max workspaces = 10");
                 fw.min(10)
             }),
         ),
-        SubscriptionOpts::Window { title_length } => (
+        SubscribeOpts::Window { title_length } => (
             SubscriptionID::Window,
             title_length.map_or(0, |tl| {
                 log::warn!("Max title length = 100");
@@ -31,6 +31,7 @@ pub async fn start_client(socket: &str, subscription_opts: &SubscriptionOpts) {
 
     let max_connect_attempts = 5;
     let attempt_delay = 500;
+
     let mut connection = match utils::try_connect(socket, max_connect_attempts, attempt_delay).await
     {
         Some(stream) => stream,
@@ -69,34 +70,15 @@ pub async fn start_client(socket: &str, subscription_opts: &SubscriptionOpts) {
 
 pub async fn send_server_command(
     socket_path: &str,
-    command: &ServerCommand,
-    max_tries: usize,
+    command: &CommandOpts,
+    max_attempts: usize,
 ) -> bool {
-    let delay = 200;
-    let mut stream = match utils::try_connect(socket_path, max_tries, delay).await {
-        Some(stream) => stream,
-        None => {
-            log::warn!("Cannot connect to socket: {socket_path}");
-            return false;
-        }
-    };
-
     let message = serde_json::to_string(&command).unwrap();
-    if let Err(e) = stream.write_all(message.as_bytes()).await {
-        log::error!("Failed to write message to socket. Error: {e}");
-        return false;
-    }
-
-    let mut buffer = [0; 1024];
-    let bytes_received = match stream.read(&mut buffer).await {
-        Ok(size) if size > 0 => size,
-        Ok(_) | Err(_) => {
-            log::error!("Failed to read response from server");
-            return false;
+    match utils::write_to_socket(socket_path, &message, max_attempts, 200).await {
+        Some(response) => {
+            log::info!("Response: {response}");
+            true
         }
-    };
-
-    let response = String::from_utf8_lossy(&buffer[0..bytes_received]).to_string();
-    log::info!("Response: {response}");
-    true
+        None => false,
+    }
 }

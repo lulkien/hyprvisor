@@ -25,14 +25,14 @@ pub enum Action {
     Daemon,
 
     #[command(flatten)]
-    Command(ServerCommand),
+    Command(CommandOpts),
 
     #[command(flatten)]
-    Listen(SubscriptionOpts),
+    Listen(SubscribeOpts),
 }
 
 #[derive(Debug, Deserialize, Serialize, Subcommand, PartialEq)]
-pub enum ServerCommand {
+pub enum CommandOpts {
     #[command(name = "ping", alias = "p")]
     Ping,
 
@@ -41,7 +41,7 @@ pub enum ServerCommand {
 }
 
 #[derive(Debug, Deserialize, Serialize, Subcommand, PartialEq)]
-pub enum SubscriptionOpts {
+pub enum SubscribeOpts {
     #[command(name = "workspaces", alias = "ws")]
     Workspaces { fix_workspace: Option<u32> },
 

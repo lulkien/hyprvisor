@@ -1,7 +1,7 @@
 use crate::{
     common_types::{ClientInfo, Subscriber},
     hyprland_listener,
-    opts::ServerCommand,
+    opts::CommandOpts,
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{
@@ -14,6 +14,7 @@ pub async fn start_server(socket: &str) {
     log::info!("Starting hyprvisor server...");
     let subscribers = Arc::new(Mutex::new(Subscriber::new()));
 
+    // Start hyprland listener thread
     let subscribers_ref = Arc::clone(&subscribers);
     tokio::spawn(hyprland_listener::start_hyprland_listener(subscribers_ref));
 
@@ -56,17 +57,17 @@ async fn handle_connection(mut stream: UnixStream, subscribers_ref: Arc<Mutex<Su
     let client_message = String::from_utf8_lossy(&buffer[0..bytes_received]).to_string();
     log::info!("Message from client: {}", client_message);
 
-    let command: Option<ServerCommand> = serde_json::from_str(&client_message).unwrap_or(None);
+    let command: Option<CommandOpts> = serde_json::from_str(&client_message).unwrap_or(None);
     let client: Option<ClientInfo> = serde_json::from_str(&client_message).unwrap_or(None);
 
     if let Some(cmd) = command {
         match cmd {
-            ServerCommand::Kill => {
+            CommandOpts::Kill => {
                 let _ = stream.write_all(b"Server is shuting down...").await;
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 std::process::exit(0);
             }
-            ServerCommand::Ping => {
+            CommandOpts::Ping => {
                 let _ = stream.write_all(b"Pong").await;
             }
         }

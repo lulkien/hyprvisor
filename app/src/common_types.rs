@@ -35,7 +35,12 @@ impl ClientInfo {
     }
 }
 
-#[derive(PartialEq)]
+pub enum HyprSocketType {
+    Event,
+    Command,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum HyprEvent {
     WorkspaceCreated,
     WorkspaceChanged,
@@ -44,4 +49,10 @@ pub enum HyprEvent {
     Window2Changed,
     InvalidEvent,
     // More events will be handle in the future
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct HyprWinInfo {
+    pub class: String,
+    pub title: String,
 }

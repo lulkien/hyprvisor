@@ -5,7 +5,7 @@ mod opts;
 mod server;
 mod utils;
 
-use opts::{Action, Opts, ServerCommand};
+use opts::{Action, CommandOpts, Opts};
 use std::fs;
 use utils::get_socket_path;
 
@@ -65,7 +65,7 @@ async fn check_server_alive(socket_path: &str) -> bool {
         return false;
     }
 
-    let is_alive = client::send_server_command(socket_path, &ServerCommand::Ping, 1).await;
+    let is_alive = client::send_server_command(socket_path, &CommandOpts::Ping, 1).await;
     if !is_alive {
         if let Err(e) = fs::remove_file(socket_path) {
             log::error!("Failed to remove old socket. Error: {}", e);

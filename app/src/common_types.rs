@@ -51,7 +51,7 @@ pub enum HyprEvent {
     // More events will be handle in the future
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 pub struct HyprWinInfo {
     pub class: String,
     pub title: String,

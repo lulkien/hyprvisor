@@ -32,16 +32,15 @@ pub async fn start_client(socket: &str, subscription_opts: &SubscribeOpts) {
     let max_connect_attempts = 5;
     let attempt_delay = 500;
 
-    let mut connection = match utils::try_connect(socket, max_connect_attempts, attempt_delay).await
-    {
-        Some(stream) => stream,
-        None => {
-            log::error!("Failed to connect to socket: {}", socket);
-            return;
-        }
-    };
+    let mut connection = utils::try_connect(socket, max_connect_attempts, attempt_delay)
+        .await
+        .unwrap();
 
-    if let Err(e) = connection.write_all(subcribe_message.as_bytes()).await {
+    if connection
+        .write_all(subcribe_message.as_bytes())
+        .await
+        .is_err()
+    {
         log::error!("Failed to subscriber to server");
         return;
     }

@@ -34,10 +34,13 @@ pub async fn try_connect(
     for attempt in 0..max_attempts {
         log::debug!("Try connect to {} | Attempt: {}", socket_path, attempt + 1);
         if let Ok(stream) = UnixStream::connect(socket_path).await {
+            log::debug!("Connected.");
             return Some(stream);
         }
         tokio::time::sleep(Duration::from_millis(attempt_delay)).await;
     }
+
+    log::warn!("Failed to connect to socket: {socket_path}");
     None
 }
 
@@ -49,12 +52,11 @@ pub async fn write_to_socket(
 ) -> Option<String> {
     let mut stream = match try_connect(socket_path, max_attempts, attempt_delay).await {
         Some(stream) => stream,
-        None => {
-            return None;
-        }
+        None => return None,
     };
 
     if stream.write_all(content.as_bytes()).await.is_err() {
+        log::error!("Cannot write to socket: {socket_path}");
         return None;
     }
 
@@ -70,5 +72,5 @@ pub async fn write_to_socket(
         }
     }
 
-    Some(String::from_utf8(response).unwrap())
+    Some(String::from_utf8_lossy(&response).to_string())
 }

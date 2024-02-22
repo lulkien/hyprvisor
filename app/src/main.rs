@@ -21,7 +21,7 @@ async fn run(opts: &Opts) {
     } else {
         match opts.action {
             Action::Listen(_) => log::LevelFilter::Error,
-            _ => log::LevelFilter::Info,
+            _ => log::LevelFilter::Warn,
         }
     };
 

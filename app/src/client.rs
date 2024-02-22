@@ -1,5 +1,5 @@
 use crate::{
-    common_types::{ClientInfo, SubscriptionID},
+    common_types::{ClientInfo, HResult, HyprvisorError, SubscriptionID},
     opts::{CommandOpts, SubscribeOpts},
     utils,
 };
@@ -7,7 +7,7 @@ use std::process;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[allow(unused)]
-pub async fn start_client(socket: &str, subscription_opts: &SubscribeOpts) {
+pub async fn start_client(socket: &str, subscription_opts: &SubscribeOpts) -> HResult<()> {
     let (sub_id, data_format): (SubscriptionID, u32) = match subscription_opts {
         SubscribeOpts::Workspaces { fix_workspace } => (
             SubscriptionID::Workspaces,
@@ -27,23 +27,10 @@ pub async fn start_client(socket: &str, subscription_opts: &SubscribeOpts) {
 
     let pid = process::id();
     let client_info = ClientInfo::new(pid, sub_id);
-    let subcribe_message = serde_json::to_string(&client_info).unwrap();
+    let subcribe_message = serde_json::to_string(&client_info)?;
 
-    let max_connect_attempts = 5;
-    let attempt_delay = 500;
-
-    let mut connection = utils::try_connect(socket, max_connect_attempts, attempt_delay)
-        .await
-        .unwrap();
-
-    if connection
-        .write_all(subcribe_message.as_bytes())
-        .await
-        .is_err()
-    {
-        log::error!("Failed to subscriber to server");
-        return;
-    }
+    let mut connection = utils::try_connect(socket, 5, 500).await?;
+    connection.write_all(subcribe_message.as_bytes()).await?;
 
     loop {
         let mut buffer: [u8; 1024] = [0; 1024];
@@ -51,7 +38,7 @@ pub async fn start_client(socket: &str, subscription_opts: &SubscribeOpts) {
             Ok(size) if size > 0 => size,
             Ok(_) | Err(_) => {
                 log::error!("Error reading from server.");
-                return;
+                return Err(HyprvisorError::StreamError);
             }
         };
 
@@ -65,6 +52,8 @@ pub async fn start_client(socket: &str, subscription_opts: &SubscribeOpts) {
 
         println!("{response_message}");
     }
+
+    Ok(())
 }
 
 pub async fn send_server_command(
@@ -73,11 +62,9 @@ pub async fn send_server_command(
     max_attempts: usize,
 ) -> bool {
     let message = serde_json::to_string(&command).unwrap();
-    match utils::write_to_socket(socket_path, &message, max_attempts, 200).await {
-        Some(response) => {
-            log::info!("Response: {response}");
-            true
-        }
-        None => false,
+    if let Ok(response) = utils::write_to_socket(socket_path, &message, max_attempts, 200).await {
+        log::info!("Response: {response}");
+        return true;
     }
+    false
 }

@@ -1,6 +1,9 @@
 use crate::{
     client,
-    common_types::{HyprEvent, HyprSocketType, HyprWinInfo, Subscriber, SubscriptionID},
+    common_types::{
+        HResult, HyprEvent, HyprSocketType, HyprWinInfo, HyprWorkspaceInfo, HyprvisorError,
+        Subscriber, SubscriptionID,
+    },
     opts::CommandOpts,
     utils,
 };
@@ -13,6 +16,7 @@ use tokio::{
 pub async fn start_hyprland_listener(subscribers: Arc<Mutex<Subscriber>>) {
     let event_socket = utils::get_hyprland_socket(&HyprSocketType::Event);
     let mut current_win_info = HyprWinInfo::default();
+    let mut current_ws_info: Vec<HyprWorkspaceInfo> = Vec::new();
 
     log::info!("Start Hyprland event listener");
     let mut event_listener = utils::try_connect(&event_socket, 1, 500).await.unwrap();
@@ -24,8 +28,14 @@ pub async fn start_hyprland_listener(subscribers: Arc<Mutex<Subscriber>>) {
                 let events = parse_events(&buffer[..bytes]);
                 log::info!("{:?}", events);
                 if events.contains(&HyprEvent::WindowChanged) {
-                    let subscribers_ref = Arc::clone(&subscribers);
-                    handle_window_changed_event(&mut current_win_info, subscribers_ref).await;
+                    let _ = broadcast_window_info(&mut current_win_info, subscribers.clone()).await;
+                    let _ =
+                        broadcast_workspace_data(&mut current_ws_info, subscribers.clone()).await;
+                } else if events.contains(&HyprEvent::WorkspaceCreated)
+                    || events.contains(&HyprEvent::WorkspaceDestroyed)
+                {
+                    let _ =
+                        broadcast_workspace_data(&mut current_ws_info, subscribers.clone()).await;
                 }
             }
 
@@ -61,12 +71,10 @@ fn parse_events(buffer: &[u8]) -> Vec<HyprEvent> {
     evt_list
 }
 
-async fn get_hypr_active_window() -> HyprWinInfo {
+async fn get_hypr_active_window() -> HResult<HyprWinInfo> {
     let mut win_info = HyprWinInfo::default();
     let cmd_sock = utils::get_hyprland_socket(&HyprSocketType::Command);
-    let raw_response = utils::write_to_socket(&cmd_sock, "activewindow", 1, 250)
-        .await
-        .unwrap();
+    let raw_response = utils::write_to_socket(&cmd_sock, "activewindow", 1, 250).await?;
 
     let processed_data: Vec<String> = raw_response
         .split('\n')
@@ -84,31 +92,31 @@ async fn get_hypr_active_window() -> HyprWinInfo {
         }
     }
 
-    win_info
+    Ok(win_info)
 }
 
-async fn handle_window_changed_event(
+async fn broadcast_window_info(
     current_win_info: &mut HyprWinInfo,
     subscribers: Arc<Mutex<Subscriber>>,
-) {
+) -> HResult<()> {
     let mut subscribers = subscribers.lock().await;
     let win_subscribers = match subscribers.get_mut(&SubscriptionID::Window) {
         Some(subs) if !subs.is_empty() => subs,
         Some(_) | None => {
             log::info!("No subscribers");
-            return;
+            return Err(HyprvisorError::NoSubscribers);
         }
     };
 
-    let new_win_info = get_hypr_active_window().await;
+    let new_win_info = get_hypr_active_window().await?;
     if *current_win_info == new_win_info {
-        return;
+        return Err(HyprvisorError::FalseAlarm);
     }
 
     *current_win_info = new_win_info.clone();
 
     let mut disconnected_pid = Vec::new();
-    let window_json = serde_json::to_string(current_win_info).unwrap();
+    let window_json = serde_json::to_string(current_win_info)?;
 
     for (pid, stream) in win_subscribers.iter_mut() {
         if stream.write_all(window_json.as_bytes()).await.is_err() {
@@ -120,4 +128,38 @@ async fn handle_window_changed_event(
     for pid in disconnected_pid {
         win_subscribers.remove(&pid);
     }
+
+    Ok(())
+}
+
+async fn get_hypr_workspace_info() -> HResult<Vec<HyprWorkspaceInfo>> {
+    let cmd_sock = utils::get_hyprland_socket(&HyprSocketType::Command);
+    let handle_active_ws = utils::write_to_socket(&cmd_sock, "activeworkspace", 1, 250);
+    let handle_all_ws = utils::write_to_socket(&cmd_sock, "workspaces", 1, 250);
+
+    tokio::try_join!(handle_active_ws, handle_all_ws)?;
+
+    Ok(vec![])
+}
+
+async fn broadcast_workspace_data(
+    current_ws_info: &mut [HyprWorkspaceInfo],
+    subscribers: Arc<Mutex<Subscriber>>,
+) -> HResult<()> {
+    let mut subscribers = subscribers.lock().await;
+    let ws_subscribers = match subscribers.get_mut(&SubscriptionID::Window) {
+        Some(subs) if !subs.is_empty() => subs,
+        Some(_) | None => {
+            log::info!("No subscribers");
+            return Err(HyprvisorError::NoSubscribers);
+        }
+    };
+
+    let new_ws_info = get_hypr_workspace_info().await?;
+    if *current_ws_info == new_ws_info {
+        return Err(HyprvisorError::FalseAlarm);
+    }
+
+    log::debug!("Hello");
+    Ok(())
 }

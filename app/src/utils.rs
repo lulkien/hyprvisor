@@ -4,7 +4,7 @@ use tokio::{
     net::UnixStream,
 };
 
-use crate::common_types::HyprSocketType;
+use crate::common_types::{HResult, HyprSocketType, HyprvisorError};
 
 pub fn get_socket_path() -> String {
     env::var("XDG_RUNTIME_DIR")
@@ -30,18 +30,18 @@ pub async fn try_connect(
     socket_path: &str,
     max_attempts: usize,
     attempt_delay: u64,
-) -> Option<UnixStream> {
+) -> HResult<UnixStream> {
     for attempt in 0..max_attempts {
         log::debug!("Try connect to {} | Attempt: {}", socket_path, attempt + 1);
         if let Ok(stream) = UnixStream::connect(socket_path).await {
             log::debug!("Connected.");
-            return Some(stream);
+            return Ok(stream);
         }
         tokio::time::sleep(Duration::from_millis(attempt_delay)).await;
     }
 
     log::warn!("Failed to connect to socket: {socket_path}");
-    None
+    Err(HyprvisorError::StreamError)
 }
 
 pub async fn write_to_socket(
@@ -49,16 +49,9 @@ pub async fn write_to_socket(
     content: &str,
     max_attempts: usize,
     attempt_delay: u64,
-) -> Option<String> {
-    let mut stream = match try_connect(socket_path, max_attempts, attempt_delay).await {
-        Some(stream) => stream,
-        None => return None,
-    };
-
-    if stream.write_all(content.as_bytes()).await.is_err() {
-        log::error!("Cannot write to socket: {socket_path}");
-        return None;
-    }
+) -> HResult<String> {
+    let mut stream = try_connect(socket_path, max_attempts, attempt_delay).await?;
+    stream.write_all(content.as_bytes()).await?;
 
     let mut response = vec![];
     let mut buffer: [u8; 8192] = [0; 8192];
@@ -72,5 +65,5 @@ pub async fn write_to_socket(
         }
     }
 
-    Some(String::from_utf8_lossy(&response).to_string())
+    Ok(String::from_utf8_lossy(&response).to_string())
 }

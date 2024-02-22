@@ -1,7 +1,35 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result};
+use std::io;
 use tokio::net::UnixStream;
+
+// This result type will be used everywhere
+pub type HResult<T> = std::result::Result<T, HyprvisorError>;
+
+#[allow(unused)]
+#[derive(Debug)]
+pub enum HyprvisorError {
+    SerdeError,
+    IoError,
+    StreamError,
+    DaemonRunning,
+    NoDaemon,
+    NoSubscribers,
+    FalseAlarm,
+}
+
+impl From<io::Error> for HyprvisorError {
+    fn from(_: io::Error) -> Self {
+        HyprvisorError::IoError
+    }
+}
+
+impl From<serde_json::Error> for HyprvisorError {
+    fn from(_: serde_json::Error) -> Self {
+        HyprvisorError::SerdeError
+    }
+}
 
 pub type Subscriber = HashMap<SubscriptionID, HashMap<u32, UnixStream>>;
 
@@ -55,4 +83,11 @@ pub enum HyprEvent {
 pub struct HyprWinInfo {
     pub class: String,
     pub title: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct HyprWorkspaceInfo {
+    pub id: u32,
+    pub occupied: bool,
+    pub active: bool,
 }

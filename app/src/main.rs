@@ -1,16 +1,15 @@
 mod client;
 mod common_types;
+mod error;
 mod hyprland_listener;
 mod opts;
 mod server;
 mod utils;
 
-use common_types::HResult;
+use crate::error::{HyprvisorError, HyprvisorResult};
 use opts::{Action, CommandOpts, Opts};
 use std::fs;
 use utils::get_socket_path;
-
-use crate::common_types::HyprvisorError;
 
 #[tokio::main]
 async fn main() {
@@ -18,7 +17,7 @@ async fn main() {
     let _ = run(&opts).await;
 }
 
-async fn run(opts: &Opts) -> HResult<()> {
+async fn run(opts: &Opts) -> HyprvisorResult<()> {
     let log_filter = if opts.debug {
         log::LevelFilter::Debug
     } else {

@@ -1,5 +1,6 @@
 use crate::{
-    common_types::{ClientInfo, HResult, HyprvisorError, SubscriptionID},
+    common_types::{ClientInfo, SubscriptionID},
+    error::{HyprvisorError, HyprvisorResult},
     opts::{CommandOpts, SubscribeOpts},
     utils,
 };
@@ -7,7 +8,7 @@ use std::process;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[allow(unused)]
-pub async fn start_client(socket: &str, subscription_opts: &SubscribeOpts) -> HResult<()> {
+pub async fn start_client(socket: &str, subscription_opts: &SubscribeOpts) -> HyprvisorResult<()> {
     let (sub_id, data_format): (SubscriptionID, u32) = match subscription_opts {
         SubscribeOpts::Workspaces { fix_workspace } => (
             SubscriptionID::Workspaces,

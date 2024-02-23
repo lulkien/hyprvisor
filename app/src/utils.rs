@@ -1,10 +1,12 @@
+use crate::{
+    error::{HyprvisorError, HyprvisorResult},
+    hyprland_listener::types::HyprSocketType,
+};
 use std::{env, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::UnixStream,
 };
-
-use crate::common_types::{HResult, HyprSocketType, HyprvisorError};
 
 pub fn get_socket_path() -> String {
     env::var("XDG_RUNTIME_DIR")
@@ -30,7 +32,7 @@ pub async fn try_connect(
     socket_path: &str,
     max_attempts: usize,
     attempt_delay: u64,
-) -> HResult<UnixStream> {
+) -> HyprvisorResult<UnixStream> {
     for attempt in 0..max_attempts {
         log::debug!("Try connect to {} | Attempt: {}", socket_path, attempt + 1);
         if let Ok(stream) = UnixStream::connect(socket_path).await {
@@ -49,7 +51,7 @@ pub async fn write_to_socket(
     content: &str,
     max_attempts: usize,
     attempt_delay: u64,
-) -> HResult<String> {
+) -> HyprvisorResult<String> {
     let mut stream = try_connect(socket_path, max_attempts, attempt_delay).await?;
     stream.write_all(content.as_bytes()).await?;
 

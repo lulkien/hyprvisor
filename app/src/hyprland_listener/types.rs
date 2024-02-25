@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
 
-pub enum HyprSocketType {
+pub(crate) enum HyprSocketType {
     Event,
     Command,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum HyprEvent {
+pub(super) enum HyprEvent {
     WorkspaceCreated,
     WorkspaceChanged,
     WorkspaceDestroyed,
@@ -17,13 +17,13 @@ pub enum HyprEvent {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
-pub struct HyprWinInfo {
+pub(crate) struct HyprWinInfo {
     pub class: String,
     pub title: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
-pub struct HyprWorkspaceInfo {
+pub(crate) struct HyprWorkspaceInfo {
     pub id: u32,
     pub occupied: bool,
     pub active: bool,

@@ -1,10 +1,4 @@
-use crate::{
-    client,
-    common_types::Subscriber,
-    error::{HyprvisorError, HyprvisorResult},
-    opts::CommandOpts,
-    utils,
-};
+use crate::{client, common_types::Subscriber, error::HyprvisorResult, opts::CommandOpts, utils};
 use std::sync::Arc;
 use tokio::{io::AsyncReadExt, sync::Mutex};
 

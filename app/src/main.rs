@@ -18,7 +18,7 @@ async fn main() {
 }
 
 async fn run(opts: &Opts) -> HyprvisorResult<()> {
-    let log_filter = if opts.debug {
+    let log_filter = if opts.verbose {
         log::LevelFilter::Debug
     } else {
         match opts.action {

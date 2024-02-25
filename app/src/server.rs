@@ -87,8 +87,9 @@ async fn handle_connection(mut stream: UnixStream, subscribers_ref: Arc<Mutex<Su
             client_info.subscription_id
         );
 
-        if stream.write_all(b"Hello").await.is_ok() {
-            log::info!("Hello");
+        let message = b"Hello";
+        if stream.write_all(message).await.is_ok() {
+            log::info!("Client connected.");
             subscribers
                 .get_mut(&client_info.subscription_id)
                 .unwrap()

@@ -5,6 +5,7 @@ use crate::{
     utils,
 };
 use std::sync::Arc;
+#[allow(unused)]
 use tokio::{io::AsyncWriteExt, sync::Mutex};
 
 async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
@@ -17,6 +18,7 @@ async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
     Ok(vec![])
 }
 
+#[allow(unused)]
 pub(super) async fn broadcast_info(
     current_ws_info: &mut [HyprWorkspaceInfo],
     subscribers: Arc<Mutex<Subscriber>>,
@@ -25,14 +27,15 @@ pub(super) async fn broadcast_info(
     let ws_subscribers = match subscribers.get_mut(&SubscriptionID::Window) {
         Some(subs) if !subs.is_empty() => subs,
         Some(_) | None => {
-            log::info!("No subscribers");
-            return Err(HyprvisorError::NoSubscribers);
+            log::warn!("No subscribers");
+            return Ok(());
         }
     };
 
     let new_ws_info = get_hypr_workspace_info().await?;
     if *current_ws_info == new_ws_info {
-        return Err(HyprvisorError::FalseAlarm);
+        log::warn!("False Alarm");
+        return Ok(());
     }
 
     log::debug!("Hello");

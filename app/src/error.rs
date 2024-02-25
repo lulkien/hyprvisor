@@ -4,15 +4,13 @@ use std::{io, result::Result};
 pub type HyprvisorResult<T> = Result<T, HyprvisorError>;
 
 #[allow(unused)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum HyprvisorError {
     SerdeError,
     IoError,
     StreamError,
     DaemonRunning,
     NoDaemon,
-    NoSubscribers,
-    FalseAlarm,
 }
 
 impl From<io::Error> for HyprvisorError {

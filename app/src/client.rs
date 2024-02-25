@@ -7,9 +7,8 @@ use crate::{
 use std::process;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-#[allow(unused)]
 pub async fn start_client(socket: &str, subscription_opts: &SubscribeOpts) -> HyprvisorResult<()> {
-    let (sub_id, data_format): (SubscriptionID, u32) = match subscription_opts {
+    let (sub_id, _data_format): (SubscriptionID, u32) = match subscription_opts {
         SubscribeOpts::Workspaces { fix_workspace } => (
             SubscriptionID::Workspaces,
             fix_workspace.map_or(0, |fw| {
@@ -44,28 +43,17 @@ pub async fn start_client(socket: &str, subscription_opts: &SubscribeOpts) -> Hy
         };
 
         let response_message = String::from_utf8_lossy(&buffer[..bytes_received]).to_string();
-
-        // response_message = reformat_response(
-        //     &response_message,
-        //     &self.client_info.subscription_id,
-        //     &self.extra_data,
-        // );
-
         println!("{response_message}");
     }
-
-    Ok(())
 }
 
 pub async fn send_server_command(
     socket_path: &str,
     command: &CommandOpts,
     max_attempts: usize,
-) -> bool {
+) -> HyprvisorResult<()> {
     let message = serde_json::to_string(&command).unwrap();
-    if let Ok(response) = utils::write_to_socket(socket_path, &message, max_attempts, 200).await {
-        log::info!("Response: {response}");
-        return true;
-    }
-    false
+    let response = utils::write_to_socket(socket_path, &message, max_attempts, 200).await?;
+    log::info!("Response: {response}");
+    Ok(())
 }

@@ -1,7 +1,7 @@
 use super::types::{HyprSocketType, HyprWinInfo};
 use crate::{
     common_types::{Subscriber, SubscriptionID},
-    error::{HyprvisorError, HyprvisorResult},
+    error::HyprvisorResult,
     utils,
 };
 use std::sync::Arc;
@@ -40,13 +40,14 @@ pub(super) async fn broadcast_info(
         Some(subs) if !subs.is_empty() => subs,
         Some(_) | None => {
             log::info!("No subscribers");
-            return Err(HyprvisorError::NoSubscribers);
+            return Ok(());
         }
     };
 
     let new_win_info = get_hypr_active_window().await?;
     if *current_win_info == new_win_info {
-        return Err(HyprvisorError::FalseAlarm);
+        log::info!("False Alarm");
+        return Ok(());
     }
 
     *current_win_info = new_win_info.clone();

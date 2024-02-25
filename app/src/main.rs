@@ -32,7 +32,7 @@ async fn run(opts: &Opts) -> HyprvisorResult<()> {
         .init();
 
     let socket_path = get_socket_path();
-    let server_running = check_server_alive(&socket_path).await;
+    let server_running = check_server_alive(&socket_path).await?;
 
     match &opts.action {
         Action::Daemon => {
@@ -47,7 +47,7 @@ async fn run(opts: &Opts) -> HyprvisorResult<()> {
                 log::error!("Server is not running.");
                 return Err(HyprvisorError::NoDaemon);
             }
-            client::send_server_command(&socket_path, command, 3).await;
+            client::send_server_command(&socket_path, command, 3).await?;
         }
         Action::Listen(subscription) => {
             if !server_running {
@@ -61,22 +61,24 @@ async fn run(opts: &Opts) -> HyprvisorResult<()> {
     Ok(())
 }
 
-async fn check_server_alive(socket_path: &str) -> bool {
+async fn check_server_alive(socket_path: &str) -> HyprvisorResult<bool> {
     log::info!("Socket: {socket_path}");
 
     if fs::metadata(socket_path).is_err() {
         log::info!("Server is not running");
-        return false;
+        return Ok(false);
     }
 
-    let is_alive = client::send_server_command(socket_path, &CommandOpts::Ping, 1).await;
-    if !is_alive {
+    if client::send_server_command(socket_path, &CommandOpts::Ping, 1)
+        .await
+        .is_err()
+    {
         if let Err(e) = fs::remove_file(socket_path) {
             log::error!("Failed to remove old socket. Error: {}", e);
         } else {
             log::debug!("Removed old socket.");
+            return Ok(false);
         }
     }
-
-    is_alive
+    Ok(true)
 }

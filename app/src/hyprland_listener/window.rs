@@ -46,7 +46,7 @@ pub(super) async fn broadcast_info(
 
     let new_win_info = get_hypr_active_window().await?;
     if *current_win_info == new_win_info {
-        log::info!("False Alarm");
+        log::warn!("False Alarm");
         return Ok(());
     }
 

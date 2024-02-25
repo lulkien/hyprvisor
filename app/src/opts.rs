@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Opts {
-    pub debug: bool,
+    pub verbose: bool,
     pub action: Action,
 }
 
@@ -11,9 +11,9 @@ pub struct Opts {
 #[clap(author = "LulKien")]
 #[clap(version, about)]
 struct RawOpts {
-    /// Write out debug logs. (To read the logs, run `hyprvisor debug`).
-    #[arg(long = "debug", global = true)]
-    debug: bool,
+    /// Run hyprvisor with log level DEBUG.
+    #[arg(long = "verbose", short = 'v')]
+    verbose: bool,
 
     #[command(subcommand)]
     action: Action,
@@ -31,7 +31,7 @@ pub enum Action {
     Listen(SubscribeOpts),
 }
 
-#[derive(Debug, Deserialize, Serialize, Subcommand, PartialEq)]
+#[derive(Debug, PartialEq, Deserialize, Serialize, Subcommand)]
 pub enum CommandOpts {
     #[command(name = "ping", alias = "p")]
     Ping,
@@ -40,7 +40,7 @@ pub enum CommandOpts {
     Kill,
 }
 
-#[derive(Debug, Deserialize, Serialize, Subcommand, PartialEq)]
+#[derive(Debug, PartialEq, Deserialize, Serialize, Subcommand)]
 pub enum SubscribeOpts {
     #[command(name = "workspaces", alias = "ws")]
     Workspaces { fix_workspace: Option<u32> },
@@ -59,7 +59,7 @@ impl Opts {
 impl From<RawOpts> for Opts {
     fn from(raw_opts: RawOpts) -> Self {
         Opts {
-            debug: raw_opts.debug,
+            verbose: raw_opts.verbose,
             action: raw_opts.action,
         }
     }

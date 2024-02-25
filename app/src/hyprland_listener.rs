@@ -1,4 +1,10 @@
-use crate::{client, common_types::Subscriber, opts::CommandOpts, utils};
+use crate::{
+    client,
+    common_types::Subscriber,
+    error::{HyprvisorError, HyprvisorResult},
+    opts::CommandOpts,
+    utils,
+};
 use std::sync::Arc;
 use tokio::{io::AsyncReadExt, sync::Mutex};
 
@@ -7,7 +13,7 @@ use types::{HyprEvent, HyprSocketType, HyprWinInfo, HyprWorkspaceInfo};
 mod window;
 mod workspaces;
 
-pub async fn start_hyprland_listener(subscribers: Arc<Mutex<Subscriber>>) {
+pub async fn start_hyprland_listener(subscribers: Arc<Mutex<Subscriber>>) -> HyprvisorResult<()> {
     let event_socket = utils::get_hyprland_socket(&HyprSocketType::Event);
     let mut current_win_info = HyprWinInfo::default();
     let mut current_ws_info: Vec<HyprWorkspaceInfo> = Vec::new();
@@ -22,21 +28,19 @@ pub async fn start_hyprland_listener(subscribers: Arc<Mutex<Subscriber>>) {
                 let events = parse_events(&buffer[..bytes]);
                 log::info!("{:?}", events);
                 if events.contains(&HyprEvent::WindowChanged) {
-                    let _ =
-                        window::broadcast_info(&mut current_win_info, subscribers.clone()).await;
-                    let _ =
-                        workspaces::broadcast_info(&mut current_ws_info, subscribers.clone()).await;
+                    window::broadcast_info(&mut current_win_info, subscribers.clone()).await?;
+                    workspaces::broadcast_info(&mut current_ws_info, subscribers.clone()).await?;
                 } else if events.contains(&HyprEvent::WorkspaceCreated)
                     || events.contains(&HyprEvent::WorkspaceDestroyed)
                 {
-                    let _ =
-                        workspaces::broadcast_info(&mut current_ws_info, subscribers.clone()).await;
+                    workspaces::broadcast_info(&mut current_ws_info, subscribers.clone()).await?;
                 }
             }
 
             Ok(_) | Err(_) => {
                 log::error!("Connection closed from Hyprland event socket");
-                client::send_server_command(&utils::get_socket_path(), &CommandOpts::Kill, 1).await;
+                client::send_server_command(&utils::get_socket_path(), &CommandOpts::Kill, 1)
+                    .await?;
             }
         }
     }

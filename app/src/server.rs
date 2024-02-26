@@ -1,5 +1,5 @@
 use crate::{
-    common_types::{ClientInfo, Subscriber},
+    common_types::{ClientInfo, Subscriber, SubscriptionID},
     hyprland_listener,
     opts::CommandOpts,
 };
@@ -15,8 +15,9 @@ pub async fn start_server(socket: &str) {
     let subscribers = Arc::new(Mutex::new(Subscriber::new()));
 
     // Start hyprland listener thread
-    let subscribers_ref = Arc::clone(&subscribers);
-    tokio::spawn(hyprland_listener::start_hyprland_listener(subscribers_ref));
+    tokio::spawn(hyprland_listener::start_hyprland_listener(
+        subscribers.clone(),
+    ));
 
     let listener = match UnixListener::bind(socket) {
         Ok(listener) => {
@@ -34,8 +35,7 @@ pub async fn start_server(socket: &str) {
     };
 
     while let Ok((stream, _)) = listener.accept().await {
-        let subscriber_ref = Arc::clone(&subscribers);
-        tokio::spawn(handle_connection(stream, subscriber_ref));
+        tokio::spawn(handle_connection(stream, subscribers.clone()));
     }
 }
 
@@ -63,12 +63,14 @@ async fn handle_connection(mut stream: UnixStream, subscribers_ref: Arc<Mutex<Su
     if let Some(cmd) = command {
         match cmd {
             CommandOpts::Kill => {
-                let _ = stream.write_all(b"Server is shuting down...").await;
+                let shutdown_message = "Server is shuting down...".to_string();
+                log::warn!("{shutdown_message}");
+                stream.write_all(shutdown_message.as_bytes()).await.unwrap();
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 std::process::exit(0);
             }
             CommandOpts::Ping => {
-                let _ = stream.write_all(b"Pong").await;
+                stream.write_all(b"Pong").await.unwrap();
             }
         }
 
@@ -87,13 +89,34 @@ async fn handle_connection(mut stream: UnixStream, subscribers_ref: Arc<Mutex<Su
             client_info.subscription_id
         );
 
-        let message = b"Hello";
-        if stream.write_all(message).await.is_ok() {
-            log::info!("Client connected.");
-            subscribers
-                .get_mut(&client_info.subscription_id)
-                .unwrap()
-                .insert(client_info.process_id, stream);
+        let message = match client_info.subscription_id {
+            SubscriptionID::Window => {
+                match hyprland_listener::window::get_hypr_active_window().await {
+                    Ok(win_info) => serde_json::to_string(&win_info),
+                    Err(_) => return,
+                }
+            }
+            SubscriptionID::Workspaces => {
+                match hyprland_listener::workspaces::get_hypr_workspace_info().await {
+                    Ok(ws_info) => serde_json::to_string(&ws_info),
+                    Err(_) => return,
+                }
+            }
+        };
+
+        match message {
+            Ok(msg) => {
+                if stream.write_all(msg.as_bytes()).await.is_ok() {
+                    log::info!("Client connected.");
+                    subscribers
+                        .get_mut(&client_info.subscription_id)
+                        .unwrap()
+                        .insert(client_info.process_id, stream);
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to serialize message. Error: {}", e);
+            }
         }
     }
 }

@@ -1,13 +1,13 @@
 use super::types::{HyprSocketType, HyprWinInfo};
 use crate::{
     common_types::{Subscriber, SubscriptionID},
-    error::HyprvisorResult,
+    error::{HyprvisorError, HyprvisorResult},
     utils,
 };
 use std::sync::Arc;
 use tokio::{io::AsyncWriteExt, sync::Mutex};
 
-async fn get_hypr_active_window() -> HyprvisorResult<HyprWinInfo> {
+pub(crate) async fn get_hypr_active_window() -> HyprvisorResult<HyprWinInfo> {
     let mut win_info = HyprWinInfo::default();
     let cmd_sock = utils::get_hyprland_socket(&HyprSocketType::Command);
     let raw_response = utils::write_to_socket(&cmd_sock, "activewindow", 1, 250).await?;
@@ -39,15 +39,13 @@ pub(super) async fn broadcast_info(
     let win_subscribers = match subscribers.get_mut(&SubscriptionID::Window) {
         Some(subs) if !subs.is_empty() => subs,
         Some(_) | None => {
-            log::info!("No subscribers");
-            return Ok(());
+            return Err(HyprvisorError::NoSubscriber);
         }
     };
 
     let new_win_info = get_hypr_active_window().await?;
     if *current_win_info == new_win_info {
-        log::warn!("False Alarm");
-        return Ok(());
+        return Err(HyprvisorError::FalseAlarm);
     }
 
     *current_win_info = new_win_info.clone();

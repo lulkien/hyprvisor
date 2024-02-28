@@ -11,13 +11,13 @@ mod utils;
 
 use crate::error::{HyprvisorError, HyprvisorResult};
 use opts::{Action, CommandOpts, Opts};
-use std::fs;
-use utils::get_socket_path;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> HyprvisorResult<()> {
     let opts = Opts::from_env();
-    let _ = run(&opts).await;
+    run(&opts).await?;
+
+    Ok(())
 }
 
 async fn run(opts: &Opts) -> HyprvisorResult<()> {
@@ -34,7 +34,7 @@ async fn run(opts: &Opts) -> HyprvisorResult<()> {
         .filter(Some("hyprvisor"), log_filter)
         .init();
 
-    let socket_path = get_socket_path();
+    let socket_path = utils::get_socket_path();
     let server_running = check_server_alive(&socket_path).await?;
 
     match &opts.action {
@@ -67,16 +67,16 @@ async fn run(opts: &Opts) -> HyprvisorResult<()> {
 async fn check_server_alive(socket_path: &str) -> HyprvisorResult<bool> {
     log::info!("Socket: {socket_path}");
 
-    if fs::metadata(socket_path).is_err() {
+    if std::fs::metadata(socket_path).is_err() {
         log::info!("Server is not running");
         return Ok(false);
     }
 
-    if client::send_server_command(socket_path, &CommandOpts::Ping, 1)
+    if client::send_server_command(socket_path, &CommandOpts::Ping, 3)
         .await
         .is_err()
     {
-        if let Err(e) = fs::remove_file(socket_path) {
+        if let Err(e) = std::fs::remove_file(socket_path) {
             log::error!("Failed to remove old socket. Error: {}", e);
         } else {
             log::debug!("Removed old socket.");

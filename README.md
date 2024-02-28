@@ -2,7 +2,7 @@
 
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-cyan.svg)](http://unlicense.org/)
 [![Hyprland](https://img.shields.io/badge/Made%20for-Hyprland-blue.svg)](https://github.com/hyprwm/Hyprland)
-![Build](https://github.com/lulkien/hyprvisor/actions/workflows/rust.yml/badge.svg)
+![Build](https://github.com/lulkien/hyprvisor/actions/workflows/stable_build.yml/badge.svg)
 
 ## Overview
 
@@ -20,10 +20,16 @@ Or, if you are using Arch Linux, then here you go:
 sudo pacman -S rustup
 ```
 
-2. **Install Rust Nightly:**
+2. **Install Rust toolchain:**
 
 ```bash
-rustup default nightly
+rustup install nightly
+```
+
+or
+
+```bash
+rustup install stable
 ```
 
 3. **Clone the Repository:**
@@ -32,17 +38,12 @@ rustup default nightly
 git clone https://github.com/lulkien/hyprvisor.git
 ```
 
-4. **Build and Install Server:**
+4. **Build and Install**
+
+Change directory into the repo and run:
 
 ```bash
-cd hyprvisor/server
-cargo install --path .
-```
- 
-5. **Build and Install Client:**
-
-```bash
-cd hyprvisor/client
+cd app
 cargo install --path .
 ```
 
@@ -57,21 +58,23 @@ cargo install --path .
 - The client can be used with [Elkowars Wacky Widgets](https://github.com/elkowar/eww).
 - Usage:
   ```console
-  Usage: hyprvisor-client <COMMAND>
+  Usage: hyprvisor [OPTIONS] <COMMAND>
 
   Commands:
-    workspace      Listen to Hyprland's workspaces changed
-    window         Listen to focused Hyprland's window changed
-    sink-volume    Listen to sink volume changed
-    source-volume  Listen to source volume changed
-    help           Print this message or the help of the given subcommand(s)
+    daemon
+    ping
+    kill
+    workspaces
+    window
+    help        Print this message or the help of the given subcommand(s)
 
   Options:
+    -v, --verbose  Run hyprvisor with log level DEBUG
     -h, --help     Print help
     -V, --version  Print version
   ```
-- You can listen to a fixed number of workspaces with `hypervisor-client workspace <number>`
-- You can also limit the length of the active window's title with `hypervisor-client window <number>`
+- You can listen to a fixed number of workspaces with `hyprvisor workspaces <number>`
+- You can also limit the length of the active window's title with `hyprvisor window <number>`
 
 3. **Exploring Additional Uses:**
    
@@ -83,9 +86,10 @@ cargo install --path .
 
   ```bash
   #!/usr/bin/env bash
-
-  killall hyprvisor-server
-  ~/.cargo/bin/hyprvisor-server &
+  
+  ~/.cargo/bin/hyprvisor kill
+  sleep 0.2
+  ~/.cargo/bin/hyprvisor daemon
   ```
 
 - [$HOME/.config/hypr/hyprland.conf](https://github.com/lulkien/dotfiles/blob/master/config/hypr/hyprland.conf)
@@ -97,17 +101,16 @@ cargo install --path .
 
   # Start EWW
   exec-once = eww daemon
-  exec-once = eww -c ~/.config/eww/widgets/power-overlay daemon
-  exec-once = eww -c ~/.config/eww/widgets/quick-control daemon
-  exec-once = eww open bar
+  exec-open = <start other eww daemon>
+  exec-once = <open your eww widgets>
   ...
   # Your config
   ```
-- [$HOME/.config/eww/modules/workspaces.yuck](https://github.com/lulkien/dotfiles/blob/hyprland/home/.config/eww/modules/workspaces.yuck)
+- [$HOME/.config/eww/modules/workspaces.yuck](https://github.com/lulkien/dotfiles/blob/master/config/eww/modules/workspaces.yuck)
   ```yuck
   ;; Listen to Hyprland's workspace
   (deflisten workspaces :initial "[]"
-    "bash -c '~/.cargo/bin/hyprvisor-client workspace 10'")
+    "sh -c '~/.cargo/bin/hyprvisor workspaces 10'")
 
   (defwidget workspaces-widget []
     (box :class "workspaces-widget"

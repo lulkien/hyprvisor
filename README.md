@@ -2,7 +2,7 @@
 
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-cyan.svg)](http://unlicense.org/)
 [![Hyprland](https://img.shields.io/badge/Made%20for-Hyprland-blue.svg)](https://github.com/hyprwm/Hyprland)
-![Build](https://github.com/lulkien/hyprvisor/actions/workflows/stable_build.yml/badge.svg)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/lulkien/hyprvisor/.github%2Fworkflows%2Fstable_build.yml)
 
 ## Overview
 
@@ -129,6 +129,9 @@ cargo install --path .
     )
   )
   ```
+- My EWW bar preview:
+ ![Example widget](https://github.com/lulkien/hyprvisor/blob/48a6dcb0f1b6fe9927d9a2a2f4103c9b14af5eba/previews/example_eww_widget.png)
+  
 Comprehensive configurations and further details can be found within the provided dotfiles repository.
 
 ## Disclaimer:

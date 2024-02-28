@@ -8,12 +8,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out
+        uses: actions/checkout@v4
       - name: Setup rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          components: rustfmt, clippy
+      - name: Change directory
+        run: cd app
       - name: Cargo clippy
         uses: actions-rs/clippy-check@v1
         with:
@@ -24,6 +26,7 @@ jobs:
           command: fmt
           args: --all -- --check
       - name: Cargo build
-        run: |
-          cd app
-          cargo build --release
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release

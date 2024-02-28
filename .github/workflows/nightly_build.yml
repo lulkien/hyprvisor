@@ -1,4 +1,4 @@
-name: stable_build
+name: nightly_build
 on:
   push:
     branches: [master]
@@ -13,7 +13,7 @@ jobs:
       - name: Setup rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           override: true
       - name: Cargo check
         uses: actions-rs/cargo@v1

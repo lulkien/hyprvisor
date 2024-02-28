@@ -11,7 +11,7 @@ use tokio::{io::AsyncWriteExt, sync::Mutex};
 fn parse_workspace(raw_data: &str) -> HyprvisorResult<HyprWorkspaceInfo> {
     lazy_static! {
         static ref WS_REGEX: Regex = Regex::new(
-            r"workspace ID \d \((\d)\) on monitor.*:\n\s*monitorID:.*\n\s*windows: (\d)\n\s*hasfullscreen:.*\n\s*lastwindow:.*\n\s*lastwindowtitle:.*",
+            r"workspace ID \d+ \((\d+)\) on monitor.*:\n\s*monitorID:.*\n\s*windows: (\d+)\n\s*hasfullscreen:.*\n\s*lastwindow:.*\n\s*lastwindowtitle:.*",
         ).expect("Failed to compile regex");
     }
 
@@ -64,6 +64,7 @@ pub(crate) async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspa
 
     let mut active_ws = parse_workspace(&active_ws)?;
     active_ws.active = true;
+
     let all_ws = parse_all_workspaces(&all_ws, active_ws)?;
 
     Ok(all_ws)

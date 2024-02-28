@@ -1,14 +1,18 @@
 use crate::{
     common_types::{ClientInfo, SubscriptionID},
     error::{HyprvisorError, HyprvisorResult},
+    hyprland_listener::types::{HyprWinInfo, HyprWorkspaceInfo},
     opts::{CommandOpts, SubscribeOpts},
     utils,
 };
-use std::process;
+use std::{collections::HashMap, process};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-pub async fn start_client(socket: &str, subscription_opts: &SubscribeOpts) -> HyprvisorResult<()> {
-    let (sub_id, _data_format): (SubscriptionID, u32) = match subscription_opts {
+pub(crate) async fn start_client(
+    socket: &str,
+    subscription_opts: &SubscribeOpts,
+) -> HyprvisorResult<()> {
+    let (sub_id, data_format): (SubscriptionID, u32) = match subscription_opts {
         SubscribeOpts::Workspaces { fix_workspace } => (
             SubscriptionID::Workspaces,
             fix_workspace.map_or(0, |fw| {
@@ -26,11 +30,11 @@ pub async fn start_client(socket: &str, subscription_opts: &SubscribeOpts) -> Hy
     };
 
     let pid = process::id();
-    let client_info = ClientInfo::new(pid, sub_id);
-    let subcribe_message = serde_json::to_string(&client_info)?;
+    let client_info = ClientInfo::new(pid, sub_id.clone());
+    let subscribe_msg = serde_json::to_string(&client_info)?;
 
     let mut connection = utils::try_connect(socket, 5, 500).await?;
-    connection.write_all(subcribe_message.as_bytes()).await?;
+    connection.write_all(subscribe_msg.as_bytes()).await?;
 
     loop {
         let mut buffer: [u8; 1024] = [0; 1024];
@@ -42,18 +46,68 @@ pub async fn start_client(socket: &str, subscription_opts: &SubscribeOpts) -> Hy
             }
         };
 
-        let response_message = String::from_utf8_lossy(&buffer[..bytes_received]).to_string();
-        println!("{response_message}");
+        let rr = reformat_response(&buffer[..bytes_received], &sub_id, &data_format)?;
+        println!("{rr}");
     }
 }
 
-pub async fn send_server_command(
+pub(crate) async fn send_server_command(
     socket_path: &str,
     command: &CommandOpts,
     max_attempts: usize,
 ) -> HyprvisorResult<()> {
-    let message = serde_json::to_string(&command).unwrap();
+    let message = serde_json::to_string(&command)?;
     let response = utils::write_to_socket(socket_path, &message, max_attempts, 200).await?;
     log::info!("Response: {response}");
     Ok(())
+}
+
+fn reformat_response(
+    buffer: &[u8],
+    subscription_id: &SubscriptionID,
+    extra_data: &u32,
+) -> HyprvisorResult<String> {
+    let mut formatted_response = String::from_utf8_lossy(buffer).to_string();
+    if *extra_data < 1 {
+        return Ok(formatted_response);
+    }
+
+    match subscription_id {
+        SubscriptionID::Workspaces => {
+            let origin: Vec<HyprWorkspaceInfo> = serde_json::from_str(&formatted_response)?;
+            if origin.len() > *extra_data as usize {
+                return Ok(formatted_response);
+            }
+
+            let mut table: HashMap<u32, HyprWorkspaceInfo> =
+                origin.clone().into_iter().map(|ws| (ws.id, ws)).collect();
+
+            (1..=*extra_data).for_each(|id| {
+                table.entry(id).or_insert_with(|| HyprWorkspaceInfo {
+                    id,
+                    occupied: false,
+                    active: false,
+                });
+            });
+
+            let mut modified: Vec<HyprWorkspaceInfo> = table.into_values().collect();
+            modified.sort_by_key(|info| info.id);
+
+            formatted_response = serde_json::to_string(&modified)?;
+        }
+        SubscriptionID::Window => {
+            let win_info: Result<HyprWinInfo, _> = serde_json::from_slice(buffer);
+            let mut win_info = match win_info {
+                Ok(value) => value,
+                Err(_) => return Ok(formatted_response),
+            };
+
+            if let Some(title) = win_info.title.get(..*extra_data as usize) {
+                win_info.title = format!("{}...", String::from_utf8_lossy(title.as_bytes()));
+                formatted_response = serde_json::to_string(&win_info)?;
+            }
+        }
+    }
+
+    Ok(formatted_response)
 }

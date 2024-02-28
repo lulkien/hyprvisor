@@ -7,7 +7,9 @@ pub mod window;
 pub mod workspaces;
 use types::{HyprEvent, HyprSocketType, HyprWinInfo, HyprWorkspaceInfo};
 
-pub async fn start_hyprland_listener(subscribers: Arc<Mutex<Subscriber>>) -> HyprvisorResult<()> {
+pub(crate) async fn start_hyprland_listener(
+    subscribers: Arc<Mutex<Subscriber>>,
+) -> HyprvisorResult<()> {
     let event_socket = utils::get_hyprland_socket(&HyprSocketType::Event);
     let mut current_win_info = HyprWinInfo::default();
     let mut current_ws_info: Vec<HyprWorkspaceInfo> = Vec::new();
@@ -71,7 +73,7 @@ fn parse_events(buffer: &[u8]) -> Vec<HyprEvent> {
 
 async fn send_window_info(current_info: &mut HyprWinInfo, subscribers: Arc<Mutex<Subscriber>>) {
     if let Err(e) = window::broadcast_info(current_info, subscribers.clone()).await {
-        log::info!("{e}");
+        log::info!("Window: {e}");
     }
 }
 
@@ -80,6 +82,6 @@ async fn send_workspace_info(
     subscribers: Arc<Mutex<Subscriber>>,
 ) {
     if let Err(e) = workspaces::broadcast_info(current_info, subscribers.clone()).await {
-        log::info!("{e}");
+        log::info!("Workspace: {e}");
     }
 }

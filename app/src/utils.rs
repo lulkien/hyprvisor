@@ -10,8 +10,8 @@ use tokio::{
 
 pub fn get_socket_path() -> String {
     env::var("XDG_RUNTIME_DIR")
-        .map(|value| format!("{}/hyprvisor2.sock", value))
-        .unwrap_or_else(|_| "/tmp/hyprvisor2.sock".to_string())
+        .map(|value| format!("{}/hyprvisor.sock", value))
+        .unwrap_or_else(|_| "/tmp/hyprvisor.sock".to_string())
 }
 
 pub fn get_hyprland_socket(socket_type: &HyprSocketType) -> String {

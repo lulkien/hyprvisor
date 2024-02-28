@@ -2,9 +2,11 @@ name: Rust
 
 on:
   push:
-    branches: [ "master" ]
+    branches:
+      - master
   pull_request:
-    branches: [ "master" ]
+    branches:
+      - master
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,21 +14,22 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
-        toolchain: [stable, nightly]
+        toolchain:
+          - stable
+          - nightly
 
     steps:
-    - name: Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-    - name: Set up Rust
-      uses: actions/setup-rust@v1
-      with:
-        rust-version: ${{ matrix.toolchain }}
+      - name: Set up Rust
+        uses: actions/setup-rust@v1
+        with:
+          rust-version: '${{ matrix.toolchain }}'
 
-    - name: Build Hyprvisor
-      run: |
-        cd app
-        cargo build --release
+      - name: Build Hyprvisor
+        run: |
+          cd app
+          cargo build --release

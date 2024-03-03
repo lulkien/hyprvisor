@@ -11,7 +11,6 @@ pub enum HyprvisorError {
     SerdeError(serde_json::Error),
     IoError(io::Error),
     StreamError,
-    RegexError(regex::Error),
     ParseError,
     NoSubscriber,
     FalseAlarm,
@@ -29,12 +28,6 @@ impl From<serde_json::Error> for HyprvisorError {
     }
 }
 
-impl From<regex::Error> for HyprvisorError {
-    fn from(value: regex::Error) -> Self {
-        HyprvisorError::RegexError(value)
-    }
-}
-
 impl From<std::num::ParseIntError> for HyprvisorError {
     fn from(_: std::num::ParseIntError) -> Self {
         HyprvisorError::ParseError
@@ -49,7 +42,6 @@ impl Display for HyprvisorError {
             HyprvisorError::SerdeError(err) => write!(f, "Serde error: {}", err),
             HyprvisorError::IoError(err) => write!(f, "IO error: {}", err),
             HyprvisorError::StreamError => write!(f, "Stream error"),
-            HyprvisorError::RegexError(err) => write!(f, "Regex error: {}", err),
             HyprvisorError::ParseError => write!(f, "Parse error"),
             HyprvisorError::NoSubscriber => write!(f, "No subscriber"),
             HyprvisorError::FalseAlarm => write!(f, "False alarm"),

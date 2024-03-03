@@ -8,27 +8,16 @@ use std::sync::Arc;
 use tokio::{io::AsyncWriteExt, sync::Mutex};
 
 pub(crate) async fn get_hypr_active_window() -> HyprvisorResult<HyprWinInfo> {
-    let mut win_info = HyprWinInfo::default();
+    use serde_json::{from_str, Value};
+
     let cmd_sock = utils::get_hyprland_socket(&HyprSocketType::Command);
-    let raw_response = utils::write_to_socket(&cmd_sock, "activewindow", 1, 250).await?;
+    let raw_response = utils::write_to_socket(&cmd_sock, "j/activewindow", 1, 250).await?;
+    let json_data: Value = from_str(&raw_response)?;
 
-    let processed_data: Vec<String> = raw_response
-        .split('\n')
-        .map(|s| s.trim().to_string())
-        .filter(|s| s.starts_with("class: ") || s.starts_with("title: "))
-        .collect();
-
-    for d in processed_data {
-        if d.starts_with("class: ") {
-            win_info.class = d.strip_prefix("class: ").unwrap().to_string();
-        } else if d.starts_with("title: ") {
-            win_info.title = d.strip_prefix("title: ").unwrap().to_string();
-        } else {
-            // do nothing
-        }
-    }
-
-    Ok(win_info)
+    Ok(HyprWinInfo {
+        class: json_data["class"].as_str().unwrap_or_default().to_string(),
+        title: json_data["title"].as_str().unwrap_or_default().to_string(),
+    })
 }
 
 pub(super) async fn broadcast_info(

@@ -4,68 +4,47 @@ use crate::{
     error::{HyprvisorError, HyprvisorResult},
     utils,
 };
-use regex::Regex;
 use std::sync::Arc;
 use tokio::{io::AsyncWriteExt, sync::Mutex};
 
-fn parse_workspace(raw_data: &str) -> HyprvisorResult<HyprWorkspaceInfo> {
-    lazy_static! {
-        static ref WS_REGEX: Regex = Regex::new(
-            r"workspace ID \d+ \((\d+)\) on monitor.*:\n\s*monitorID:.*\n\s*windows: (\d+)\n\s*hasfullscreen:.*\n\s*lastwindow:.*\n\s*lastwindowtitle:.*",
-        ).expect("Failed to compile regex");
-    }
-
-    if let Some(captures) = WS_REGEX.captures(raw_data) {
-        let id: u32 = captures[1].parse()?;
-        let windows: usize = captures[2].parse()?;
-
-        let workspace_info = HyprWorkspaceInfo {
-            id,
-            occupied: windows != 0,
-            active: false,
-        };
-
-        Ok(workspace_info)
-    } else {
-        Err(HyprvisorError::ParseError)
-    }
-}
-
 fn parse_all_workspaces(
     raw_data: &str,
-    active_ws: HyprWorkspaceInfo,
+    raw_active: &str,
 ) -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
-    let result_vec: Vec<HyprWorkspaceInfo> = raw_data
-        .split("\n\n")
-        .filter_map(|workspace_data| {
-            let trimmed_data = workspace_data.trim();
-            if trimmed_data.is_empty() {
-                None
-            } else {
-                let mut ws_info = parse_workspace(trimmed_data).ok()?;
-                if ws_info.id == active_ws.id {
-                    ws_info.active = true;
-                }
-                Some(ws_info)
-            }
-        })
-        .collect();
+    use serde_json::{from_str, Value};
 
-    Ok(result_vec)
+    let json_objects: Value = from_str(raw_data)?;
+    let active_id = get_activeworkspace_id(raw_active)?;
+    if let Value::Array(js_arr) = json_objects {
+        let result_vec: Vec<HyprWorkspaceInfo> = js_arr
+            .iter()
+            .map(|js_obj| HyprWorkspaceInfo {
+                id: js_obj["id"].as_u64().unwrap_or_default() as u32,
+                occupied: js_obj["windows"].as_i64().unwrap_or_default() > 0,
+                active: js_obj["id"].as_u64().unwrap_or_default() as u32 == active_id,
+            })
+            .collect();
+
+        return Ok(result_vec);
+    }
+    Err(HyprvisorError::ParseError)
+}
+
+fn get_activeworkspace_id(raw_data: &str) -> HyprvisorResult<u32> {
+    use serde_json::{from_str, Value};
+    let json_objects: Value = from_str(raw_data)?;
+    Ok(json_objects["id"].as_u64().unwrap_or_default() as u32)
 }
 
 pub(crate) async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
     let cmd_sock = utils::get_hyprland_socket(&HyprSocketType::Command);
 
-    let handle_active_ws = utils::write_to_socket(&cmd_sock, "activeworkspace", 1, 250);
-    let handle_all_ws = utils::write_to_socket(&cmd_sock, "workspaces", 1, 250);
+    let handle_active_ws = utils::write_to_socket(&cmd_sock, "j/activeworkspace", 1, 250);
+    let handle_all_ws = utils::write_to_socket(&cmd_sock, "j/workspaces", 1, 250);
 
-    let (active_ws, all_ws) = tokio::try_join!(handle_active_ws, handle_all_ws)?;
+    let (raw_active, raw_all) = tokio::try_join!(handle_active_ws, handle_all_ws)?;
 
-    let mut active_ws = parse_workspace(&active_ws)?;
-    active_ws.active = true;
-
-    let all_ws = parse_all_workspaces(&all_ws, active_ws)?;
+    let all_ws = parse_all_workspaces(&raw_all, &raw_active)?;
 
     Ok(all_ws)
 }

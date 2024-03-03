@@ -1,9 +1,13 @@
 name: stable_build
 on:
   push:
-    branches: [master]
+    branches:
+      - master
+      - 'feature/*'
   pull_request:
-    branches: [master]
+    branches:
+      - master
+      - 'feature/*'
 jobs:
   build:
     runs-on: ubuntu-latest

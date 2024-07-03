@@ -25,7 +25,9 @@ pub fn get_hyprland_socket(socket_type: &HyprSocketType) -> String {
         HyprSocketType::Event => ".socket2.sock",
     };
 
-    format!("/tmp/hypr/{instance_signature}/{socket_name}")
+    env::var("XDG_RUNTIME_DIR")
+        .map(|value| format!("{value}/hypr/{instance_signature}/{socket_name}"))
+        .unwrap_or_else(|_| format!("/tmp/hypr/{instance_signature}/{socket_name}"))
 }
 
 pub async fn try_connect(

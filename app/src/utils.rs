@@ -9,9 +9,14 @@ use tokio::{
 };
 
 pub fn get_socket_path() -> String {
+    let instance_signature = match env::var("HYPRLAND_INSTANCE_SIGNATURE") {
+        Ok(var) => var,
+        Err(_) => panic!("Is hyprland running?"),
+    };
+
     env::var("XDG_RUNTIME_DIR")
-        .map(|value| format!("{}/hyprvisor.sock", value))
-        .unwrap_or_else(|_| "/tmp/hyprvisor.sock".to_string())
+        .map(|value| format!("{value}/hypr/{instance_signature}/.hyprvisor.sock"))
+        .unwrap_or_else(|_| "/tmp/.hyprvisor.sock".to_string())
 }
 
 pub fn get_hyprland_socket(socket_type: &HyprSocketType) -> String {

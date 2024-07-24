@@ -4,10 +4,8 @@ resolver = "2"
 
 [workspace.dependencies]
 clap = { version = "4.5.10", features = ["derive"] }
-# lazy_static = "1.4.0"
 log = "0.4.22"
-pretty_env_logger = "0.5.0"
-# regex = "1.10.3"
+fern = "0.6.2"
 serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.120"
 tokio = { version = "1.39.1", features = ["full"] }

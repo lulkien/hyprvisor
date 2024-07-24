@@ -6,7 +6,7 @@ mod opts;
 mod server;
 mod utils;
 
-use std::time::SystemTime;
+use std::{process, time::SystemTime};
 
 use crate::error::{HyprvisorError, HyprvisorResult};
 use opts::{Action, CommandOpts, Opts};
@@ -19,12 +19,55 @@ async fn main() -> HyprvisorResult<()> {
     Ok(())
 }
 
-fn setup_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
+fn init_server_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
     let log_init_result = fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
                 "{} [{}] {} - {}",
-                humantime::format_rfc3339(SystemTime::now()),
+                humantime::format_rfc3339_seconds(SystemTime::now()),
+                record.level(),
+                record.target(),
+                message
+            ))
+        })
+        .level(*filter)
+        .chain(fern::log_file("/tmp/hyprvisor-server.log")?)
+        .apply();
+
+    match log_init_result {
+        Ok(_) => Ok(()),
+        Err(_) => Err(HyprvisorError::LoggerError),
+    }
+}
+
+fn init_client_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
+    let log_init_result = fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{} [{}] ({}) {} - {}",
+                humantime::format_rfc3339_seconds(SystemTime::now()),
+                record.level(),
+                process::id(),
+                record.target(),
+                message
+            ))
+        })
+        .level(*filter)
+        .chain(fern::log_file("/tmp/hyprvisor-client.log")?)
+        .apply();
+
+    match log_init_result {
+        Ok(_) => Ok(()),
+        Err(_) => Err(HyprvisorError::LoggerError),
+    }
+}
+
+fn init_command_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
+    let log_init_result = fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{} [{}] {} - {}",
+                humantime::format_rfc3339_seconds(SystemTime::now()),
                 record.level(),
                 record.target(),
                 message
@@ -32,7 +75,6 @@ fn setup_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
         })
         .level(*filter)
         .chain(std::io::stdout())
-        .chain(fern::log_file("/tmp/hyprvisor.log")?)
         .apply();
 
     match log_init_result {
@@ -42,16 +84,19 @@ fn setup_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
 }
 
 async fn run(opts: &Opts) -> HyprvisorResult<()> {
-    let filter = if opts.verbose {
-        log::LevelFilter::Debug
+    if opts.verbose {
+        match opts.action {
+            Action::Daemon => init_server_logger(&log::LevelFilter::Debug)?,
+            Action::Listen(_) => init_client_logger(&log::LevelFilter::Debug)?,
+            Action::Command(_) => init_command_logger(&log::LevelFilter::Debug)?,
+        }
     } else {
         match opts.action {
-            Action::Listen(_) => log::LevelFilter::Warn,
-            _ => log::LevelFilter::Info,
+            Action::Daemon => init_server_logger(&log::LevelFilter::Info)?,
+            Action::Listen(_) => init_client_logger(&log::LevelFilter::Warn)?,
+            Action::Command(_) => init_command_logger(&log::LevelFilter::Info)?,
         }
     };
-
-    setup_logger(&filter)?;
 
     let socket_path = utils::get_socket_path();
     let server_running = check_server_alive(&socket_path).await?;

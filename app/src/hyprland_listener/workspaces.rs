@@ -73,12 +73,13 @@ pub(super) async fn broadcast_info(
 
     for (pid, stream) in ws_subscribers.iter_mut() {
         if stream.write_all(ws_json.as_bytes()).await.is_err() {
-            log::info!("Client {} is disconnected. Remove later", pid);
+            log::debug!("Client {pid} is disconnected.");
             disconnected_pid.push(*pid);
         }
     }
 
     for pid in disconnected_pid {
+        log::info!("Remove pid: {pid}");
         ws_subscribers.remove(&pid);
     }
 

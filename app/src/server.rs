@@ -55,7 +55,7 @@ async fn handle_connection(mut stream: UnixStream, subscribers_ref: Arc<Mutex<Su
     }
 
     let client_message = String::from_utf8_lossy(&buffer[0..bytes_received]).to_string();
-    log::info!("Message from client: {}", client_message);
+    log::debug!("Message from client: {}", client_message);
 
     let command: Option<CommandOpts> = serde_json::from_str(&client_message).unwrap_or(None);
     let client: Option<ClientInfo> = serde_json::from_str(&client_message).unwrap_or(None);
@@ -107,11 +107,11 @@ async fn handle_connection(mut stream: UnixStream, subscribers_ref: Arc<Mutex<Su
         match message {
             Ok(msg) => {
                 if stream.write_all(msg.as_bytes()).await.is_ok() {
-                    log::info!("Client connected.");
                     subscribers
                         .get_mut(&client_info.subscription_id)
                         .unwrap()
                         .insert(client_info.process_id, stream);
+                    log::info!("Client connected.");
                 }
             }
             Err(e) => {

@@ -28,7 +28,7 @@ pub(crate) async fn start_hyprland_listener(
         match event_listener.read(&mut buffer).await {
             Ok(bytes) if bytes > 0 => {
                 let events = parse_events(&buffer[..bytes]);
-                log::info!("{:?}", events);
+                log::debug!("{:?}", events);
                 if events.contains(&HyprEvent::WindowChanged) {
                     send_window_info(&mut current_win_info, subscribers.clone()).await;
                     send_workspace_info(&mut current_ws_info, subscribers.clone()).await;
@@ -52,18 +52,14 @@ fn parse_events(buffer: &[u8]) -> Vec<HyprEvent> {
         .lines()
         .map(|line| {
             let mut parts = line.splitn(2, ">>");
-            let event = match parts.next() {
-                Some(evt) => evt,
-                _ => "",
-            };
 
-            match event {
+            match parts.next().unwrap_or_default() {
                 "activewindow" => HyprEvent::WindowChanged,
                 "workspace" => HyprEvent::WorkspaceChanged,
                 "activewindowv2" => HyprEvent::Window2Changed,
                 "createworkspace" => HyprEvent::WorkspaceCreated,
                 "destroyworkspace" => HyprEvent::WorkspaceDestroyed,
-                _ => HyprEvent::InvalidEvent,
+                _ => HyprEvent::IgnoredEvent,
             }
         })
         .collect();
@@ -73,7 +69,7 @@ fn parse_events(buffer: &[u8]) -> Vec<HyprEvent> {
 
 async fn send_window_info(current_info: &mut HyprWinInfo, subscribers: Arc<Mutex<Subscriber>>) {
     if let Err(e) = window::broadcast_info(current_info, subscribers.clone()).await {
-        log::info!("Window: {e}");
+        log::debug!("Window: {e}");
     }
 }
 
@@ -82,6 +78,6 @@ async fn send_workspace_info(
     subscribers: Arc<Mutex<Subscriber>>,
 ) {
     if let Err(e) = workspaces::broadcast_info(current_info, subscribers.clone()).await {
-        log::info!("Workspace: {e}");
+        log::debug!("Workspace: {e}");
     }
 }

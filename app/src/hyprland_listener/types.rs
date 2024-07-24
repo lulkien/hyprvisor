@@ -12,7 +12,7 @@ pub(super) enum HyprEvent {
     WorkspaceDestroyed,
     WindowChanged,
     Window2Changed,
-    InvalidEvent,
+    IgnoredEvent,
     // More events will be handle in the future
 }
 

@@ -6,6 +6,8 @@ mod opts;
 mod server;
 mod utils;
 
+use std::time::SystemTime;
+
 use crate::error::{HyprvisorError, HyprvisorResult};
 use opts::{Action, CommandOpts, Opts};
 
@@ -17,19 +19,39 @@ async fn main() -> HyprvisorResult<()> {
     Ok(())
 }
 
+fn setup_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
+    let log_init_result = fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{} [{}] {} - {}",
+                humantime::format_rfc3339(SystemTime::now()),
+                record.level(),
+                record.target(),
+                message
+            ))
+        })
+        .level(*filter)
+        .chain(std::io::stdout())
+        .chain(fern::log_file("/tmp/hyprvisor.log")?)
+        .apply();
+
+    match log_init_result {
+        Ok(_) => Ok(()),
+        Err(_) => Err(HyprvisorError::LoggerError),
+    }
+}
+
 async fn run(opts: &Opts) -> HyprvisorResult<()> {
-    let log_filter = if opts.verbose {
+    let filter = if opts.verbose {
         log::LevelFilter::Debug
     } else {
         match opts.action {
-            Action::Listen(_) => log::LevelFilter::Error,
-            _ => log::LevelFilter::Warn,
+            Action::Listen(_) => log::LevelFilter::Warn,
+            _ => log::LevelFilter::Info,
         }
     };
 
-    pretty_env_logger::formatted_timed_builder()
-        .filter(Some("hyprvisor"), log_filter)
-        .init();
+    setup_logger(&filter)?;
 
     let socket_path = utils::get_socket_path();
     let server_running = check_server_alive(&socket_path).await?;

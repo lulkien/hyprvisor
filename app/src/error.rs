@@ -14,6 +14,7 @@ pub enum HyprvisorError {
     ParseError,
     NoSubscriber,
     FalseAlarm,
+    LoggerError,
 }
 
 impl From<io::Error> for HyprvisorError {
@@ -34,6 +35,12 @@ impl From<std::num::ParseIntError> for HyprvisorError {
     }
 }
 
+impl From<fern::InitError> for HyprvisorError {
+    fn from(_: fern::InitError) -> Self {
+        HyprvisorError::LoggerError
+    }
+}
+
 impl Display for HyprvisorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -45,6 +52,7 @@ impl Display for HyprvisorError {
             HyprvisorError::ParseError => write!(f, "Parse error"),
             HyprvisorError::NoSubscriber => write!(f, "No subscriber"),
             HyprvisorError::FalseAlarm => write!(f, "False alarm"),
+            HyprvisorError::LoggerError => write!(f, "Cannot init logger"),
         }
     }
 }

@@ -24,35 +24,24 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          targets: ${{ matrix.target }}
+          target: ${{ matrix.target }}
       - name: Build
         uses: actions-rs/cargo@v1
         with:
           use-cross: true
           command: build
           args: --verbose --release --target ${{ matrix.target }}
-      - name: Get version
-        shell: bash
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
       - name: Build archive
         shell: bash
         run: |
           binary_name="hyprvisor"
-          dirname="$binary_name-${{ env.VERSION }}-${{ matrix.target }}"
+          dirname="$binary_name-${{ github.ref_name }}-${{ matrix.target }}"
           mkdir "$dirname"
           mv "target/${{ matrix.target }}/release/$binary_name" "$dirname"
           tar -czf "$dirname.tar.gz" "$dirname"
           echo "RELEASE_PKG=$dirname.tar.gz" >> $GITHUB_ENV
-      - name: Generate changelog
-        id: changelog
-        shell: bash
-        run: |
-          previousTag=$(git --no-pager tag --sort=creatordate --merged ${{ github.ref_name }} | tail -2 | head -1)
-          changelog=$(git log --pretty=format:"%h %s" --no-merges $previousTag..${{ github.ref_name }})
-          echo "changes=$changelog" >> $GITHUB_OUTPUT
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          body: ${{ steps.changelog.outputs.changes }}
           files: |
             ${{ env.RELEASE_PKG }}

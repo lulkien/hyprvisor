@@ -6,6 +6,7 @@ mod opts;
 mod server;
 mod utils;
 
+use humantime::format_rfc3339_seconds;
 use std::{process, time::SystemTime};
 
 use crate::error::{HyprvisorError, HyprvisorResult};
@@ -24,20 +25,18 @@ fn init_server_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
         .format(|out, message, record| {
             out.finish(format_args!(
                 "{} [{}] {} - {}",
-                humantime::format_rfc3339_seconds(SystemTime::now()),
+                format_rfc3339_seconds(SystemTime::now()),
                 record.level(),
                 record.target(),
                 message
             ))
         })
         .level(*filter)
+        .chain(std::io::stdout())
         .chain(fern::log_file("/tmp/hyprvisor-server.log")?)
         .apply();
 
-    match log_init_result {
-        Ok(_) => Ok(()),
-        Err(_) => Err(HyprvisorError::LoggerError),
-    }
+    log_init_result.map_err(|_| HyprvisorError::LoggerError)
 }
 
 fn init_client_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
@@ -45,7 +44,7 @@ fn init_client_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
         .format(|out, message, record| {
             out.finish(format_args!(
                 "{} [{}] ({}) {} - {}",
-                humantime::format_rfc3339_seconds(SystemTime::now()),
+                format_rfc3339_seconds(SystemTime::now()),
                 record.level(),
                 process::id(),
                 record.target(),
@@ -56,10 +55,7 @@ fn init_client_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
         .chain(fern::log_file("/tmp/hyprvisor-client.log")?)
         .apply();
 
-    match log_init_result {
-        Ok(_) => Ok(()),
-        Err(_) => Err(HyprvisorError::LoggerError),
-    }
+    log_init_result.map_err(|_| HyprvisorError::LoggerError)
 }
 
 fn init_command_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
@@ -67,7 +63,7 @@ fn init_command_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
         .format(|out, message, record| {
             out.finish(format_args!(
                 "{} [{}] {} - {}",
-                humantime::format_rfc3339_seconds(SystemTime::now()),
+                format_rfc3339_seconds(SystemTime::now()),
                 record.level(),
                 record.target(),
                 message
@@ -77,10 +73,7 @@ fn init_command_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
         .chain(std::io::stdout())
         .apply();
 
-    match log_init_result {
-        Ok(_) => Ok(()),
-        Err(_) => Err(HyprvisorError::LoggerError),
-    }
+    log_init_result.map_err(|_| HyprvisorError::LoggerError)
 }
 
 async fn run(opts: &Opts) -> HyprvisorResult<()> {

@@ -5,7 +5,7 @@ use crate::{
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{
-    io::AsyncWriteExt,
+    io::{AsyncWriteExt, ErrorKind},
     net::{UnixListener, UnixStream},
     sync::Mutex,
 };
@@ -40,14 +40,31 @@ pub async fn start_server(socket: &str) {
 }
 
 async fn handle_connection(mut stream: UnixStream, subscribers_ref: Arc<Mutex<Subscriber>>) {
-    let mut buffer: [u8; 1024] = [0; 1024];
-    let bytes_received = match stream.try_read(&mut buffer) {
-        Ok(message_len) => message_len,
-        Err(e) => {
-            log::error!("Failed to read data from stream. Error: {e}");
+    let mut buffer = vec![0; 1024];
+    let bytes_received;
+
+    loop {
+        let ready = stream.readable().await;
+        if let Err(e) = ready {
+            log::error!("Something wrong with this stream. Error: {e}");
             return;
         }
-    };
+
+        match stream.try_read(&mut buffer) {
+            Ok(len) => {
+                bytes_received = len;
+                break;
+            }
+            Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
+                log::warn!("Error: Ayo!!!");
+                continue;
+            }
+            Err(e) => {
+                log::error!("Failed to read data from stream. Error: {e}");
+                return;
+            }
+        };
+    }
 
     if bytes_received < 2 {
         log::error!("Invalid message");

@@ -2,10 +2,11 @@ use crate::{
     common_types::{ClientInfo, Subscriber, SubscriptionID},
     hyprland_listener,
     opts::CommandOpts,
+    utils,
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{
-    io::{AsyncWriteExt, ErrorKind},
+    io::ErrorKind,
     net::{UnixListener, UnixStream},
     sync::Mutex,
 };
@@ -39,7 +40,7 @@ pub async fn start_server(socket: &str) {
     }
 }
 
-async fn handle_connection(mut stream: UnixStream, subscribers_ref: Arc<Mutex<Subscriber>>) {
+async fn handle_connection(stream: UnixStream, subscribers_ref: Arc<Mutex<Subscriber>>) {
     let mut buffer = vec![0; 1024];
     let bytes_received;
 
@@ -80,14 +81,14 @@ async fn handle_connection(mut stream: UnixStream, subscribers_ref: Arc<Mutex<Su
     if let Some(cmd) = command {
         match cmd {
             CommandOpts::Kill => {
-                let shutdown_message = "Server is shuting down...".to_string();
-                log::warn!("{shutdown_message}");
-                stream.write_all(shutdown_message.as_bytes()).await.unwrap();
+                let shutdown_message = "Server is shuting down...";
+                log::info!("{shutdown_message}");
+                utils::try_write(&stream, shutdown_message).await.unwrap();
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 std::process::exit(0);
             }
             CommandOpts::Ping => {
-                stream.write_all(b"Pong").await.unwrap();
+                utils::try_write(&stream, "Pong").await.unwrap();
             }
         }
 
@@ -123,7 +124,7 @@ async fn handle_connection(mut stream: UnixStream, subscribers_ref: Arc<Mutex<Su
 
         match message {
             Ok(msg) => {
-                if stream.write_all(msg.as_bytes()).await.is_ok() {
+                if utils::try_write(&stream, &msg).await.is_ok() {
                     subscribers
                         .get_mut(&client_info.subscription_id)
                         .unwrap()

@@ -5,7 +5,7 @@ use crate::{
     utils,
 };
 use std::sync::Arc;
-use tokio::{io::AsyncWriteExt, sync::Mutex};
+use tokio::sync::Mutex;
 
 fn parse_all_workspaces(
     raw_data: &str,
@@ -39,8 +39,8 @@ fn get_activeworkspace_id(raw_data: &str) -> HyprvisorResult<u32> {
 pub(crate) async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
     let cmd_sock = utils::get_hyprland_socket(&HyprSocketType::Command);
 
-    let handle_active_ws = utils::write_to_socket(&cmd_sock, "j/activeworkspace", 1, 250);
-    let handle_all_ws = utils::write_to_socket(&cmd_sock, "j/workspaces", 1, 250);
+    let handle_active_ws = utils::try_connect_and_wait(&cmd_sock, "j/activeworkspace", 10);
+    let handle_all_ws = utils::try_connect_and_wait(&cmd_sock, "j/workspaces", 10);
 
     let (raw_active, raw_all) = tokio::try_join!(handle_active_ws, handle_all_ws)?;
 
@@ -72,7 +72,7 @@ pub(super) async fn broadcast_info(
     let ws_json = serde_json::to_string(current_ws_info)?;
 
     for (pid, stream) in ws_subscribers.iter_mut() {
-        if stream.write_all(ws_json.as_bytes()).await.is_err() {
+        if utils::try_write(stream, &ws_json).await.is_err() {
             log::debug!("Client {pid} is disconnected.");
             disconnected_pid.push(*pid);
         }

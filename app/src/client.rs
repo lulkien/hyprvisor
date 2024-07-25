@@ -6,7 +6,7 @@ use crate::{
     utils,
 };
 use std::{collections::HashMap, process};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncReadExt;
 
 pub(crate) async fn start_client(
     socket: &str,
@@ -33,12 +33,12 @@ pub(crate) async fn start_client(
     let client_info = ClientInfo::new(pid, sub_id.clone());
     let subscribe_msg = serde_json::to_string(&client_info)?;
 
-    let mut connection = utils::try_connect(socket, 5, 500).await?;
-    connection.write_all(subscribe_msg.as_bytes()).await?;
+    let mut stream = utils::try_connect(socket, 5, 500).await?;
+    let _ = utils::try_write_and_wait(&stream, &subscribe_msg, 10).await;
 
     loop {
         let mut buffer: [u8; 1024] = [0; 1024];
-        let bytes_received = match connection.read(&mut buffer).await {
+        let bytes_received = match stream.read(&mut buffer).await {
             Ok(size) if size > 0 => size,
             Ok(_) | Err(_) => {
                 log::error!("Error reading from server.");
@@ -56,9 +56,13 @@ pub(crate) async fn send_server_command(
     command: &CommandOpts,
     max_attempts: usize,
 ) -> HyprvisorResult<()> {
+    let stream = utils::try_connect(socket_path, max_attempts, 200).await?;
     let message = serde_json::to_string(&command)?;
-    let response = utils::write_to_socket(socket_path, &message, max_attempts, 200).await?;
-    log::info!("Response: {response}");
+
+    utils::try_write(&stream, &message).await?;
+    let response = utils::try_read(&stream).await?;
+
+    log::info!("Response from server: {response}");
     Ok(())
 }
 

@@ -20,75 +20,68 @@ async fn main() -> HyprvisorResult<()> {
     Ok(())
 }
 
-fn init_server_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
-    let log_init_result = fern::Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "{} [{}] {} - {}",
-                format_rfc3339_seconds(SystemTime::now()),
-                record.level(),
-                record.target(),
-                message
-            ))
-        })
-        .level(*filter)
-        .chain(std::io::stdout())
-        .chain(fern::log_file("/tmp/hyprvisor-server.log")?)
-        .apply();
-
-    log_init_result.map_err(|_| HyprvisorError::LoggerError)
+#[derive(Clone, PartialEq)]
+enum LogType {
+    Server,
+    Client,
+    Command,
 }
 
-fn init_client_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
-    let log_init_result = fern::Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "{} [{}] ({}) {} - {}",
-                format_rfc3339_seconds(SystemTime::now()),
-                record.level(),
-                process::id(),
-                record.target(),
-                message
-            ))
-        })
-        .level(*filter)
-        .chain(fern::log_file("/tmp/hyprvisor-client.log")?)
-        .apply();
+fn init_logger(log_type: LogType, filter: log::LevelFilter) -> HyprvisorResult<()> {
+    let fern_dispatch = fern::Dispatch::new();
 
-    log_init_result.map_err(|_| HyprvisorError::LoggerError)
-}
+    let process_info = if LogType::Client == log_type {
+        format!("({}) ", process::id())
+    } else {
+        "".to_string()
+    };
 
-fn init_command_logger(filter: &log::LevelFilter) -> HyprvisorResult<()> {
-    let log_init_result = fern::Dispatch::new()
-        .format(|out, message, record| {
+    let hyprvisor_logger = fern_dispatch
+        .format(move |out, message, record| {
             out.finish(format_args!(
-                "{} [{}] {} - {}",
+                "{}{} [{}] {} - {}",
+                process_info,
                 format_rfc3339_seconds(SystemTime::now()),
                 record.level(),
                 record.target(),
                 message
             ))
         })
-        .level(*filter)
-        .chain(std::io::stdout())
-        .apply();
+        .level(filter);
 
-    log_init_result.map_err(|_| HyprvisorError::LoggerError)
+    let log_file_path = match log_type {
+        LogType::Server => "/tmp/hyprvisor-server.log",
+        LogType::Client => "/tmp/hyprvisor-client.log",
+        LogType::Command => "",
+    };
+
+    let hyprvisor_logger = if filter == log::LevelFilter::Debug || log_type == LogType::Command {
+        hyprvisor_logger.chain(std::io::stdout())
+    } else {
+        hyprvisor_logger
+    };
+
+    if log_file_path.is_empty() {
+        hyprvisor_logger.apply()
+    } else {
+        hyprvisor_logger
+            .chain(fern::log_file(log_file_path)?)
+            .apply()
+    }
+    .map_err(|_| HyprvisorError::LoggerError)
 }
 
 async fn run(opts: &Opts) -> HyprvisorResult<()> {
-    if opts.verbose {
-        match opts.action {
-            Action::Daemon => init_server_logger(&log::LevelFilter::Debug)?,
-            Action::Listen(_) => init_client_logger(&log::LevelFilter::Debug)?,
-            Action::Command(_) => init_command_logger(&log::LevelFilter::Debug)?,
-        }
+    let level_filter = if opts.verbose {
+        log::LevelFilter::Debug
     } else {
-        match opts.action {
-            Action::Daemon => init_server_logger(&log::LevelFilter::Info)?,
-            Action::Listen(_) => init_client_logger(&log::LevelFilter::Warn)?,
-            Action::Command(_) => init_command_logger(&log::LevelFilter::Info)?,
-        }
+        log::LevelFilter::Info
+    };
+
+    match &opts.action {
+        Action::Daemon => init_logger(LogType::Server, level_filter)?,
+        Action::Listen(_) => init_logger(LogType::Client, level_filter)?,
+        Action::Command(_) => init_logger(LogType::Command, level_filter)?,
     };
 
     let socket_path = utils::get_socket_path();

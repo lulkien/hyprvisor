@@ -44,7 +44,7 @@ jobs:
       - name: Get previous tag
         shell: bash
         run: |
-          name=$(git --no-pager tag --sort=creatordate --merged ${{ github.ref_name }} | tail -2 | head -1)
+          name=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1))
           echo "PREVIOUS_TAG: $name"
           echo "PREVIOUS_TAG=$name" >> $GITHUB_ENV
       - name: Update CHANGELOG

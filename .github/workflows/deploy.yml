@@ -17,13 +17,13 @@ jobs:
             target: x86_64-unknown-linux-gnu
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-      - name: Get the release version from the tag
-        shell: bash
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: actions/checkout@v4
         with:
+          fetch-depth: 0
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
           targets: ${{ matrix.target }}
       - name: Build
         uses: actions-rs/cargo@v1
@@ -31,22 +31,24 @@ jobs:
           use-cross: true
           command: build
           args: --verbose --release --target ${{ matrix.target }}
+      - name: Get version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
       - name: Build archive
         shell: bash
         run: |
           binary_name="hyprvisor"
-
           dirname="$binary_name-${{ env.VERSION }}-${{ matrix.target }}"
           mkdir "$dirname"
           mv "target/${{ matrix.target }}/release/$binary_name" "$dirname"
           tar -czf "$dirname.tar.gz" "$dirname"
-          echo "ASSET=$dirname.tar.gz" >> $GITHUB_ENV
-      - name: Get Previous tag
+          echo "RELEASE_PKG=$dirname.tar.gz" >> $GITHUB_ENV
+      - name: Get previous tag
         id: previousTag
         uses: "WyriHaximus/github-action-get-previous-tag@v1"
         with:
           fallback: v0.1.0
-      - name: Update CHANGELOG
+      - name: Generate changelog
         id: changelog
         uses: requarks/changelog-action@v1
         with:
@@ -59,4 +61,4 @@ jobs:
         with:
           body: ${{ steps.changelog.outputs.changes }}
           files: |
-            ${{ env.ASSET }}
+            ${{ env.RELEASE_PKG }}

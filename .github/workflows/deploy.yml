@@ -43,19 +43,13 @@ jobs:
           mv "target/${{ matrix.target }}/release/$binary_name" "$dirname"
           tar -czf "$dirname.tar.gz" "$dirname"
           echo "RELEASE_PKG=$dirname.tar.gz" >> $GITHUB_ENV
-      - name: Get previous tag
-        run: |
-          name=$(git --no-pager tag --sort=creatordate --merged ${{ github.ref_name }} | tail -2 | head -1)
-          echo "PREV_TAG: $name"
-          echo "PREV_TAG=$name" >> $GITHUB_ENV
       - name: Generate changelog
         id: changelog
-        uses: requarks/changelog-action@v1
-        with:
-          token: ${{ github.token }}
-          fromTag: ${{ github.ref_name }}
-          toTag: ${{ env.PREV_TAG }}
-          writeToFile: false
+        shell: bash
+        run: |
+          previousTag=$(git --no-pager tag --sort=creatordate --merged ${{ github.ref_name }} | tail -2 | head -1)
+          changelog=$(git log --pretty=format:"%h %s" --no-merges $previousTag..${{ github.ref_name }})
+          echo "changes=$changelog" >> $GITHUB_OUTPUT
       - name: Release
         uses: softprops/action-gh-release@v2
         with:

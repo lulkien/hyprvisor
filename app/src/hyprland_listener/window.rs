@@ -43,7 +43,10 @@ pub(super) async fn broadcast_info(
     let window_json = serde_json::to_string(current_win_info)?;
 
     for (pid, stream) in win_subscribers.iter_mut() {
-        if utils::try_write(stream, &window_json).await.is_err() {
+        if utils::try_write_multiple(stream, &window_json, 2)
+            .await
+            .is_err()
+        {
             log::debug!("Client {pid} is disconnected.");
             disconnected_pid.push(*pid);
         }

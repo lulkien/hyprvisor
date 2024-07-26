@@ -1,18 +1,18 @@
 use crate::{
     common_types::{ClientInfo, Subscriber, SubscriptionID},
+    error::HyprvisorResult,
     hyprland_listener,
     opts::CommandOpts,
     utils,
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{
-    io::ErrorKind,
     net::{UnixListener, UnixStream},
     sync::Mutex,
 };
 
-pub async fn start_server(socket: &str) {
-    log::info!("Starting hyprvisor server...");
+pub async fn start_server(socket: &str) -> HyprvisorResult<()> {
+    log::info!("--------------------------------- START HYPRVISOR DAEMON ---------------------------------");
     let subscribers = Arc::new(Mutex::new(Subscriber::new()));
 
     // Start hyprland listener thread
@@ -20,64 +20,27 @@ pub async fn start_server(socket: &str) {
         subscribers.clone(),
     ));
 
-    let listener = match UnixListener::bind(socket) {
-        Ok(listener) => {
-            log::info!("Server is binded on socket {}", socket);
-            listener
-        }
-        Err(e) => {
-            log::error!(
-                "Failed to bind listener on socket: {}. Error: {}",
-                socket,
-                e
-            );
-            return;
-        }
-    };
+    log::debug!("Try to bind on socket: {socket}");
+    let listener = UnixListener::bind(socket)?;
+    log::debug!("Success");
 
     while let Ok((stream, _)) = listener.accept().await {
         tokio::spawn(handle_connection(stream, subscribers.clone()));
     }
+    Ok(())
 }
 
 async fn handle_connection(stream: UnixStream, subscribers_ref: Arc<Mutex<Subscriber>>) {
-    let mut buffer = vec![0; 1024];
-    let bytes_received;
-
-    loop {
-        let ready = stream.readable().await;
-        if let Err(e) = ready {
-            log::error!("Something wrong with this stream. Error: {e}");
-            return;
-        }
-
-        match stream.try_read(&mut buffer) {
-            Ok(len) => {
-                bytes_received = len;
-                break;
-            }
-            Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
-                log::warn!("Error: Ayo!!!");
-                continue;
-            }
-            Err(e) => {
-                log::error!("Failed to read data from stream. Error: {e}");
-                return;
-            }
-        };
-    }
-
-    if bytes_received < 2 {
-        log::error!("Invalid message");
-        return;
-    }
-
-    let client_message = String::from_utf8_lossy(&buffer[0..bytes_received]).to_string();
+    let client_message = match utils::try_read_multiple(&stream, 3).await {
+        Ok(msg) => msg,
+        Err(_) => return,
+    };
     log::debug!("Message from client: {}", client_message);
 
     let command: Option<CommandOpts> = serde_json::from_str(&client_message).unwrap_or(None);
     let client: Option<ClientInfo> = serde_json::from_str(&client_message).unwrap_or(None);
 
+    // If client request a command
     if let Some(cmd) = command {
         match cmd {
             CommandOpts::Kill => {
@@ -91,10 +54,10 @@ async fn handle_connection(stream: UnixStream, subscribers_ref: Arc<Mutex<Subscr
                 utils::try_write(&stream, "Pong").await.unwrap();
             }
         }
-
         return;
     }
 
+    // If client subscribe
     if let Some(client_info) = client {
         let mut subscribers = subscribers_ref.lock().await;
         subscribers

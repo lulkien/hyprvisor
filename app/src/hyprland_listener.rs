@@ -1,6 +1,7 @@
 use crate::{common_types::Subscriber, error::HyprvisorResult, utils};
 use std::sync::Arc;
-use tokio::{io::AsyncReadExt, sync::Mutex};
+use tokio::io::AsyncReadExt;
+use tokio::sync::Mutex;
 
 pub mod types;
 pub mod window;
@@ -15,17 +16,17 @@ pub(crate) async fn start_hyprland_listener(
     let mut current_ws_info: Vec<HyprWorkspaceInfo> = Vec::new();
 
     log::info!("Start Hyprland event listener");
-    let mut event_listener = match utils::try_connect(&event_socket, 1, 500).await {
+    let mut stream = match utils::try_connect(&event_socket, 1, 500).await {
         Ok(stream) => stream,
         Err(e) => {
             log::error!("{e}");
             std::process::exit(1);
         }
     };
-    let mut buffer: [u8; 8192] = [0; 8192];
 
+    let mut buffer = vec![0; 8192];
     loop {
-        match event_listener.read(&mut buffer).await {
+        match stream.read(&mut buffer).await {
             Ok(bytes) if bytes > 0 => {
                 let events = parse_events(&buffer[..bytes]);
                 log::debug!("{:?}", events);

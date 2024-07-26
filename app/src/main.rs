@@ -93,7 +93,7 @@ async fn run(opts: &Opts) -> HyprvisorResult<()> {
                 log::error!("Server is running.");
                 return Err(HyprvisorError::DaemonRunning);
             }
-            server::start_server(&socket_path).await;
+            server::start_server(&socket_path).await?;
         }
         Action::Command(command) => {
             if !server_running {

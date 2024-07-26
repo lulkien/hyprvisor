@@ -72,6 +72,28 @@ pub async fn try_write(stream: &UnixStream, content: &str) -> HyprvisorResult<()
     }
 }
 
+#[allow(unused)]
+pub async fn try_write_multiple(
+    stream: &UnixStream,
+    content: &str,
+    max_try: usize,
+) -> HyprvisorResult<()> {
+    for attempt in 0..max_try {
+        match try_write(stream, content).await {
+            Ok(_) => {
+                return Ok(());
+            }
+            Err(_) => {
+                log::warn!("Retry {}/{}", attempt + 1, max_try);
+                continue;
+            }
+        }
+    }
+
+    log::error!("Out of attempt");
+    Err(HyprvisorError::StreamError)
+}
+
 pub async fn try_read(stream: &UnixStream) -> HyprvisorResult<String> {
     if let Err(e) = stream.readable().await {
         log::error!("Unreadable. Error: {e}");
@@ -82,7 +104,7 @@ pub async fn try_read(stream: &UnixStream) -> HyprvisorResult<String> {
     match stream.try_read(&mut buffer) {
         Ok(len) if len > 2 => {
             let response = String::from_utf8_lossy(&buffer[0..len]).to_string();
-            log::debug!("Response: {response}");
+            log::debug!("Success: {response}");
             Ok(response)
         }
         Ok(_) => {
@@ -94,6 +116,23 @@ pub async fn try_read(stream: &UnixStream) -> HyprvisorResult<String> {
             Err(HyprvisorError::StreamError)
         }
     }
+}
+
+pub async fn try_read_multiple(stream: &UnixStream, max_try: usize) -> HyprvisorResult<String> {
+    for attempt in 0..max_try {
+        match try_read(stream).await {
+            Ok(response) => {
+                return Ok(response);
+            }
+            Err(_) => {
+                log::warn!("Retry {}/{}", attempt + 1, max_try);
+                continue;
+            }
+        }
+    }
+
+    log::error!("Out of attempt");
+    Err(HyprvisorError::StreamError)
 }
 
 pub async fn try_connect_and_wait(

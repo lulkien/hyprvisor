@@ -21,16 +21,16 @@ async fn main() -> HyprvisorResult<()> {
 }
 
 #[derive(Clone, PartialEq)]
-enum LogType {
+enum LoggerType {
     Server,
     Client,
     Command,
 }
 
-fn init_logger(log_type: LogType, filter: log::LevelFilter) -> HyprvisorResult<()> {
+fn init_logger(log_type: LoggerType, filter: log::LevelFilter) -> HyprvisorResult<()> {
     let fern_dispatch = fern::Dispatch::new();
 
-    let process_info = if LogType::Client == log_type {
+    let process_info = if LoggerType::Client == log_type {
         format!("({}) ", process::id())
     } else {
         "".to_string()
@@ -50,12 +50,12 @@ fn init_logger(log_type: LogType, filter: log::LevelFilter) -> HyprvisorResult<(
         .level(filter);
 
     let log_file_path = match log_type {
-        LogType::Server => "/tmp/hyprvisor-server.log",
-        LogType::Client => "/tmp/hyprvisor-client.log",
-        LogType::Command => "",
+        LoggerType::Server => "/tmp/hyprvisor-server.log",
+        LoggerType::Client => "/tmp/hyprvisor-client.log",
+        LoggerType::Command => "",
     };
 
-    let hyprvisor_logger = if filter == log::LevelFilter::Debug || log_type == LogType::Command {
+    let hyprvisor_logger = if filter == log::LevelFilter::Debug || log_type == LoggerType::Command {
         hyprvisor_logger.chain(std::io::stdout())
     } else {
         hyprvisor_logger
@@ -79,9 +79,9 @@ async fn run(opts: &Opts) -> HyprvisorResult<()> {
     };
 
     match &opts.action {
-        Action::Daemon => init_logger(LogType::Server, level_filter)?,
-        Action::Listen(_) => init_logger(LogType::Client, level_filter)?,
-        Action::Command(_) => init_logger(LogType::Command, level_filter)?,
+        Action::Daemon => init_logger(LoggerType::Server, level_filter)?,
+        Action::Listen(_) => init_logger(LoggerType::Client, level_filter)?,
+        Action::Command(_) => init_logger(LoggerType::Command, level_filter)?,
     };
 
     let socket_path = utils::get_socket_path();

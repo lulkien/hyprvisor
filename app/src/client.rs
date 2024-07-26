@@ -34,7 +34,9 @@ pub(crate) async fn start_client(
     let subscribe_msg = serde_json::to_string(&client_info)?;
 
     let mut stream = utils::try_connect(socket, 5, 500).await?;
-    let _ = utils::try_write_and_wait(&stream, &subscribe_msg, 10).await;
+    let init_response = utils::try_write_and_wait(&stream, &subscribe_msg, 10).await?;
+    let result = reformat_response(init_response.as_bytes(), &sub_id, &data_format)?;
+    println!("{result}");
 
     loop {
         let mut buffer: [u8; 1024] = [0; 1024];
@@ -46,8 +48,8 @@ pub(crate) async fn start_client(
             }
         };
 
-        let rr = reformat_response(&buffer[..bytes_received], &sub_id, &data_format)?;
-        println!("{rr}");
+        let result = reformat_response(&buffer[..bytes_received], &sub_id, &data_format)?;
+        println!("{result}");
     }
 }
 

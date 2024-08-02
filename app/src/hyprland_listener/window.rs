@@ -5,13 +5,13 @@ use crate::{
     utils,
 };
 use std::sync::Arc;
-use tokio::{io::AsyncWriteExt, sync::Mutex};
+use tokio::sync::Mutex;
 
 pub(crate) async fn get_hypr_active_window() -> HyprvisorResult<HyprWinInfo> {
     use serde_json::{from_str, Value};
 
     let cmd_sock = utils::get_hyprland_socket(&HyprSocketType::Command);
-    let raw_response = utils::write_to_socket(&cmd_sock, "j/activewindow", 1, 250).await?;
+    let raw_response = utils::try_connect_and_wait(&cmd_sock, "j/activewindow", 10).await?;
     let json_data: Value = from_str(&raw_response)?;
 
     Ok(HyprWinInfo {
@@ -43,7 +43,10 @@ pub(super) async fn broadcast_info(
     let window_json = serde_json::to_string(current_win_info)?;
 
     for (pid, stream) in win_subscribers.iter_mut() {
-        if stream.write_all(window_json.as_bytes()).await.is_err() {
+        if utils::try_write_multiple(stream, &window_json, 2)
+            .await
+            .is_err()
+        {
             log::debug!("Client {pid} is disconnected.");
             disconnected_pid.push(*pid);
         }

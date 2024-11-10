@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-pub enum HyprSocketType {
+pub(super) enum HyprSocketType {
     Event,
     Command,
 }

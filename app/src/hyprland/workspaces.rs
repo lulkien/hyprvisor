@@ -9,7 +9,7 @@ use serde_json::{from_slice, Value};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub(crate) async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
+pub async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
     let (active_workspace, all_workspace) = tokio::try_join!(
         send_hyprland_command("j/activeworkspace"),
         send_hyprland_command("j/workspaces")

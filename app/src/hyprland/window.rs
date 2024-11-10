@@ -8,7 +8,7 @@ use crate::{
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub(crate) async fn get_hypr_active_window() -> HyprvisorResult<HyprWinInfo> {
+pub async fn get_hypr_active_window() -> HyprvisorResult<HyprWinInfo> {
     let json_data: serde_json::Value =
         serde_json::from_slice(&send_hyprland_command("j/activewindow").await?)?;
 

@@ -1,12 +1,8 @@
-use super::{
-    types::{HyprEvent, HyprEventList, HyprSocketType, HyprWinInfo, HyprWorkspaceInfo},
-    utils::hyprland_socket,
-    window, workspaces,
-};
+use super::{types::*, utils::*, window, workspaces};
 use crate::{common_types::Subscriber, error::HyprvisorResult, ipc::*};
 
 use std::sync::Arc;
-use tokio::{io::AsyncReadExt, net::UnixStream, sync::Mutex};
+use tokio::sync::Mutex;
 
 pub async fn start_hyprland_listener(subscribers: Arc<Mutex<Subscriber>>) -> HyprvisorResult<()> {
     let event_socket = hyprland_socket(&HyprSocketType::Event);
@@ -38,16 +34,6 @@ pub async fn start_hyprland_listener(subscribers: Arc<Mutex<Subscriber>>) -> Hyp
                 send_workspace_info(&mut current_ws_info, subscribers.clone()).await;
             }
             _ => {}
-        }
-    }
-}
-
-async fn fetch_hyprland_event(stream: &mut UnixStream, buffer: &mut [u8]) -> HyprEventList {
-    match stream.read(buffer).await {
-        Ok(bytes) if bytes > 0 => buffer[..bytes].into(),
-        Ok(_) | Err(_) => {
-            log::error!("Connection closed from Hyprland event socket");
-            std::process::exit(1);
         }
     }
 }

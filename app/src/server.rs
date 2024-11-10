@@ -1,7 +1,7 @@
 use crate::{
     common_types::{ClientInfo, Subscriber, SubscriptionID},
     error::HyprvisorResult,
-    hyprland::{start_hyprland_listener, window, workspaces},
+    hyprland::{get_hypr_active_window, get_hypr_workspace_info, start_hyprland_listener},
     ipc::*,
     opts::CommandOpts,
 };
@@ -59,11 +59,11 @@ async fn handle_connection(stream: UnixStream, subscribers_ref: Arc<Mutex<Subscr
         );
 
         let message = match client_info.subscription_id {
-            SubscriptionID::Window => match window::get_hypr_active_window().await {
+            SubscriptionID::Window => match get_hypr_active_window().await {
                 Ok(win_info) => serde_json::to_string(&win_info),
                 Err(_) => return,
             },
-            SubscriptionID::Workspaces => match workspaces::get_hypr_workspace_info().await {
+            SubscriptionID::Workspaces => match get_hypr_workspace_info().await {
                 Ok(ws_info) => serde_json::to_string(&ws_info),
                 Err(_) => return,
             },

@@ -3,11 +3,11 @@ on:
   push:
     branches:
       - 'feature/*'
-      - 'fix/*'
+      - 'issue/*'
   pull_request:
     branches:
       - 'feature/*'
-      - 'fix/*'
+      - 'issue/*'
 jobs:
   build:
     runs-on: ubuntu-latest

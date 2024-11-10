@@ -9,6 +9,7 @@ pub type Subscriber = HashMap<SubscriptionID, HashMap<u32, UnixStream>>;
 pub enum SubscriptionID {
     Workspaces,
     Window,
+    Wireless,
 }
 
 impl Display for SubscriptionID {
@@ -16,6 +17,7 @@ impl Display for SubscriptionID {
         match self {
             SubscriptionID::Workspaces => write!(f, "Workspaces"),
             SubscriptionID::Window => write!(f, "Window"),
+            SubscriptionID::Wireless => write!(f, "Wireless"),
         }
     }
 }

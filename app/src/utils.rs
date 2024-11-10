@@ -1,6 +1,6 @@
 use crate::{
     error::{HyprvisorError, HyprvisorResult},
-    hyprland_listener::types::HyprSocketType,
+    hyprland::types::HyprSocketType,
 };
 use std::{env, time::Duration};
 use tokio::net::UnixStream;

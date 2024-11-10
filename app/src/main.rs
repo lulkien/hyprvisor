@@ -1,7 +1,7 @@
 mod client;
 mod common_types;
 mod error;
-mod hyprland_listener;
+mod hyprland;
 mod opts;
 mod server;
 mod utils;

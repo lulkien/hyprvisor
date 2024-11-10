@@ -3,9 +3,10 @@ on:
   push:
     branches:
       - 'feature/*'
+      - 'issue/*'
   pull_request:
     branches:
-      - 'feature/*'
+      - 'issue/*'
 jobs:
   build:
     runs-on: ubuntu-latest

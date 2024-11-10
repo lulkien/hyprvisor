@@ -1,7 +1,7 @@
 use crate::{
     common_types::{ClientInfo, Subscriber, SubscriptionID},
     error::HyprvisorResult,
-    hyprland_listener,
+    hyprland::{start_hyprland_listener, window, workspaces},
     opts::CommandOpts,
     utils,
 };
@@ -16,9 +16,7 @@ pub async fn start_server(socket: &str) -> HyprvisorResult<()> {
     let subscribers = Arc::new(Mutex::new(Subscriber::new()));
 
     // Start hyprland listener thread
-    tokio::spawn(hyprland_listener::start_hyprland_listener(
-        subscribers.clone(),
-    ));
+    tokio::spawn(start_hyprland_listener(subscribers.clone()));
 
     log::debug!("Try to bind on socket: {socket}");
     let listener = UnixListener::bind(socket)?;
@@ -71,17 +69,16 @@ async fn handle_connection(stream: UnixStream, subscribers_ref: Arc<Mutex<Subscr
         );
 
         let message = match client_info.subscription_id {
-            SubscriptionID::Window => {
-                match hyprland_listener::window::get_hypr_active_window().await {
-                    Ok(win_info) => serde_json::to_string(&win_info),
-                    Err(_) => return,
-                }
-            }
-            SubscriptionID::Workspaces => {
-                match hyprland_listener::workspaces::get_hypr_workspace_info().await {
-                    Ok(ws_info) => serde_json::to_string(&ws_info),
-                    Err(_) => return,
-                }
+            SubscriptionID::Window => match window::get_hypr_active_window().await {
+                Ok(win_info) => serde_json::to_string(&win_info),
+                Err(_) => return,
+            },
+            SubscriptionID::Workspaces => match workspaces::get_hypr_workspace_info().await {
+                Ok(ws_info) => serde_json::to_string(&ws_info),
+                Err(_) => return,
+            },
+            SubscriptionID::Wireless => {
+                todo!()
             }
         };
 

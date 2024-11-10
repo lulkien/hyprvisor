@@ -1,7 +1,7 @@
 use crate::{
     common_types::{ClientInfo, SubscriptionID},
     error::{HyprvisorError, HyprvisorResult},
-    hyprland_listener::types::{HyprWinInfo, HyprWorkspaceInfo},
+    hyprland::types::{HyprWinInfo, HyprWorkspaceInfo},
     opts::{CommandOpts, SubscribeOpts},
     utils,
 };
@@ -27,6 +27,9 @@ pub(crate) async fn start_client(
                 tl.min(100)
             }),
         ),
+        SubscribeOpts::Wireless => {
+            todo!()
+        }
     };
 
     let pid = process::id();
@@ -113,6 +116,7 @@ fn reformat_response(
                 formatted_response = serde_json::to_string(&win_info)?;
             }
         }
+        SubscriptionID::Wireless => {}
     }
 
     Ok(formatted_response)

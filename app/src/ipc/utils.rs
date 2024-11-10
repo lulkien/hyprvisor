@@ -1,11 +1,18 @@
+use once_cell::sync::Lazy;
 use std::time::Duration;
 use tokio::{net::UnixStream, time::sleep};
 
 use crate::error::{HyprvisorError, HyprvisorResult};
 
+pub static BUFFER_SIZE: Lazy<usize> = Lazy::new(|| 8192);
+
+#[allow(dead_code)]
 pub trait HyprvisorSocket {
     async fn read_once(&self) -> HyprvisorResult<Vec<u8>>;
     async fn read_multiple(&self, max_attempt: u8) -> HyprvisorResult<Vec<u8>>;
+    async fn read_once_buf(&self, buffer: &mut [u8]) -> HyprvisorResult<usize>;
+    async fn read_multiple_buf(&self, buffer: &mut [u8], max_attempt: u8)
+        -> HyprvisorResult<usize>;
 
     async fn write_once(&self, content: &str) -> HyprvisorResult<()>;
     async fn write_multiple(&self, content: &str, max_attempt: u8) -> HyprvisorResult<()>;
@@ -25,7 +32,7 @@ impl HyprvisorSocket for UnixStream {
             return Err(HyprvisorError::StreamError);
         }
 
-        let mut buffer = vec![0; 8192];
+        let mut buffer = vec![0; *BUFFER_SIZE];
         match self.try_read(&mut buffer) {
             Ok(len) if len > 0 => Ok(buffer[..len].to_vec()),
             Ok(_) => {
@@ -44,6 +51,46 @@ impl HyprvisorSocket for UnixStream {
             match self.read_once().await {
                 Ok(response) => {
                     return Ok(response);
+                }
+                Err(_) => {
+                    log::warn!("Retry {}/{}", attempt + 1, max_attempt);
+                    continue;
+                }
+            }
+        }
+
+        log::error!("Out of attempt");
+        Err(HyprvisorError::StreamError)
+    }
+
+    async fn read_once_buf(&self, buffer: &mut [u8]) -> HyprvisorResult<usize> {
+        if let Err(e) = self.readable().await {
+            log::error!("Unreadable. Error: {e}");
+            return Err(HyprvisorError::StreamError);
+        }
+
+        match self.try_read(buffer) {
+            Ok(len) if len > 0 => Ok(len),
+            Ok(_) => {
+                log::error!("Invalid message");
+                Err(HyprvisorError::StreamError)
+            }
+            Err(e) => {
+                log::info!("Can't read from stream. Error: {e}");
+                Err(HyprvisorError::StreamError)
+            }
+        }
+    }
+
+    async fn read_multiple_buf(
+        &self,
+        buffer: &mut [u8],
+        max_attempt: u8,
+    ) -> HyprvisorResult<usize> {
+        for attempt in 0..max_attempt {
+            match self.read_once_buf(buffer).await {
+                Ok(len) => {
+                    return Ok(len);
                 }
                 Err(_) => {
                     log::warn!("Retry {}/{}", attempt + 1, max_attempt);

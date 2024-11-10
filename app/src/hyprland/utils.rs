@@ -1,6 +1,7 @@
 use super::types::{HyprEventList, HyprSocketType};
 use crate::{ipc::*, HyprvisorResult};
 
+use core::panic;
 use std::env;
 use tokio::{io::AsyncReadExt, net::UnixStream};
 
@@ -41,8 +42,7 @@ pub(super) async fn fetch_hyprland_event(
     match stream.read(buffer).await {
         Ok(bytes) if bytes > 0 => buffer[..bytes].into(),
         Ok(_) | Err(_) => {
-            log::error!("Connection closed from Hyprland event socket");
-            std::process::exit(1);
+            panic!("Connection closed from Hyprland event socket");
         }
     }
 }

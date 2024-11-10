@@ -1,10 +1,11 @@
 use super::{types::*, utils::*, window, workspaces};
-use crate::{common_types::Subscriber, error::HyprvisorResult, ipc::*};
+use crate::{common_types::Subscriber, ipc::*};
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use utils::BUFFER_SIZE;
 
-pub async fn start_hyprland_listener(subscribers: Arc<Mutex<Subscriber>>) -> HyprvisorResult<()> {
+pub async fn start_hyprland_listener(subscribers: Arc<Mutex<Subscriber>>) {
     let event_socket = hyprland_socket(&HyprSocketType::Event);
     let mut current_win_info = HyprWinInfo::default();
     let mut current_ws_info: Vec<HyprWorkspaceInfo> = Vec::new();
@@ -13,12 +14,11 @@ pub async fn start_hyprland_listener(subscribers: Arc<Mutex<Subscriber>>) -> Hyp
     let mut stream = match connect_to_socket(&event_socket, 1, 100).await {
         Ok(stream) => stream,
         Err(e) => {
-            log::error!("{e}");
-            std::process::exit(1);
+            panic!("Error: {e}");
         }
     };
 
-    let mut buffer = vec![0; 8192];
+    let mut buffer = vec![0; *BUFFER_SIZE];
     loop {
         match fetch_hyprland_event(&mut stream, &mut buffer).await {
             events if events.contains(&HyprEvent::WindowChanged) => {

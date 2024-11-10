@@ -1,17 +1,20 @@
+mod application;
 mod client;
 mod common_types;
 mod error;
 mod hyprland;
 mod ipc;
 mod iwd;
+mod logger;
 mod opts;
 mod server;
 mod utils;
 
-use humantime::format_rfc3339_seconds;
-use std::{process, time::SystemTime};
+use crate::{
+    error::{HyprvisorError, HyprvisorResult},
+    logger::*,
+};
 
-use crate::error::{HyprvisorError, HyprvisorResult};
 use opts::{Action, CommandOpts, Opts};
 
 #[tokio::main]
@@ -20,57 +23,6 @@ async fn main() -> HyprvisorResult<()> {
     run(&opts).await?;
 
     Ok(())
-}
-
-#[derive(Clone, PartialEq)]
-enum LoggerType {
-    Server,
-    Client,
-    Command,
-}
-
-fn init_logger(log_type: LoggerType, filter: log::LevelFilter) -> HyprvisorResult<()> {
-    let fern_dispatch = fern::Dispatch::new();
-
-    let process_info = if LoggerType::Client == log_type {
-        format!("({}) ", process::id())
-    } else {
-        "".to_string()
-    };
-
-    let hyprvisor_logger = fern_dispatch
-        .format(move |out, message, record| {
-            out.finish(format_args!(
-                "{}{} [{}] {} - {}",
-                process_info,
-                format_rfc3339_seconds(SystemTime::now()),
-                record.level(),
-                record.target(),
-                message
-            ))
-        })
-        .level(filter);
-
-    let log_file_path = match log_type {
-        LoggerType::Server => "/tmp/hyprvisor-server.log",
-        LoggerType::Client => "/tmp/hyprvisor-client.log",
-        LoggerType::Command => "",
-    };
-
-    let hyprvisor_logger = if filter == log::LevelFilter::Debug || log_type == LoggerType::Command {
-        hyprvisor_logger.chain(std::io::stdout())
-    } else {
-        hyprvisor_logger
-    };
-
-    if log_file_path.is_empty() {
-        hyprvisor_logger.apply()
-    } else {
-        hyprvisor_logger
-            .chain(fern::log_file(log_file_path)?)
-            .apply()
-    }
-    .map_err(|_| HyprvisorError::LoggerError)
 }
 
 async fn run(opts: &Opts) -> HyprvisorResult<()> {
@@ -82,8 +34,8 @@ async fn run(opts: &Opts) -> HyprvisorResult<()> {
 
     match &opts.action {
         Action::Daemon => init_logger(LoggerType::Server, level_filter)?,
-        Action::Listen(_) => init_logger(LoggerType::Client, level_filter)?,
         Action::Command(_) => init_logger(LoggerType::Command, level_filter)?,
+        _ => {}
     };
 
     let socket_path = utils::get_socket_path();
@@ -105,11 +57,7 @@ async fn run(opts: &Opts) -> HyprvisorResult<()> {
             client::send_server_command(&socket_path, command, 3).await?;
         }
         Action::Listen(subscription) => {
-            if !server_running {
-                log::error!("Server is not running.");
-                return Err(HyprvisorError::NoDaemon);
-            }
-            client::start_client(&socket_path, subscription).await?;
+            application::client::start_client(subscription, level_filter).await?;
         }
     };
 

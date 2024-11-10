@@ -2,8 +2,8 @@ use crate::{
     common_types::{ClientInfo, SubscriptionID},
     error::{HyprvisorError, HyprvisorResult},
     hyprland::types::{HyprWinInfo, HyprWorkspaceInfo},
+    ipc::{connect_to_socket, HyprvisorSocket},
     opts::{CommandOpts, SubscribeOpts},
-    utils,
 };
 use std::{collections::HashMap, process};
 use tokio::io::AsyncReadExt;
@@ -36,9 +36,10 @@ pub(crate) async fn start_client(
     let client_info = ClientInfo::new(pid, sub_id.clone());
     let subscribe_msg = serde_json::to_string(&client_info)?;
 
-    let mut stream = utils::try_connect(socket, 5, 500).await?;
-    let init_response = utils::try_write_and_wait(&stream, &subscribe_msg, 10).await?;
+    let mut stream = connect_to_socket(socket, 5, 500).await?;
+    let init_response = stream.write_and_read_multiple(&subscribe_msg, 10).await?;
     let result = reformat_response(init_response.as_bytes(), &sub_id, &data_format)?;
+
     println!("{result}");
 
     loop {
@@ -59,13 +60,13 @@ pub(crate) async fn start_client(
 pub(crate) async fn send_server_command(
     socket_path: &str,
     command: &CommandOpts,
-    max_attempts: usize,
+    max_attempts: u8,
 ) -> HyprvisorResult<()> {
-    let stream = utils::try_connect(socket_path, max_attempts, 200).await?;
+    let stream = connect_to_socket(socket_path, max_attempts, 200).await?;
     let message = serde_json::to_string(&command)?;
 
-    utils::try_write(&stream, &message).await?;
-    let response = utils::try_read(&stream).await?;
+    stream.write_once(&message).await?;
+    let response = stream.read_once().await?;
 
     log::info!("Response from server: {response}");
     Ok(())

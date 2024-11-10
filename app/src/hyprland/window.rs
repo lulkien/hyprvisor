@@ -1,18 +1,16 @@
-use super::types::{HyprSocketType, HyprWinInfo};
+use super::types::HyprWinInfo;
 use crate::{
     common_types::{Subscriber, SubscriptionID},
     error::{HyprvisorError, HyprvisorResult},
-    utils,
+    hyprland::utils::send_hyprland_command,
+    ipc::*,
 };
+use serde_json::{from_str, Value};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub(crate) async fn get_hypr_active_window() -> HyprvisorResult<HyprWinInfo> {
-    use serde_json::{from_str, Value};
-
-    let cmd_sock = utils::get_hyprland_socket(&HyprSocketType::Command);
-    let raw_response = utils::try_connect_and_wait(&cmd_sock, "j/activewindow", 10).await?;
-    let json_data: Value = from_str(&raw_response)?;
+    let json_data: Value = from_str(&send_hyprland_command("j/activewindow").await?)?;
 
     Ok(HyprWinInfo {
         class: json_data["class"].as_str().unwrap_or_default().to_string(),
@@ -43,10 +41,7 @@ pub(super) async fn broadcast_info(
     let window_json = serde_json::to_string(current_win_info)?;
 
     for (pid, stream) in win_subscribers.iter_mut() {
-        if utils::try_write_multiple(stream, &window_json, 2)
-            .await
-            .is_err()
-        {
+        if stream.write_multiple(&window_json, 2).await.is_err() {
             log::debug!("Client {pid} is disconnected.");
             disconnected_pid.push(*pid);
         }

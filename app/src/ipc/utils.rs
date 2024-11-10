@@ -1,0 +1,144 @@
+use std::time::Duration;
+use tokio::{net::UnixStream, time::sleep};
+
+use crate::error::{HyprvisorError, HyprvisorResult};
+
+#[allow(dead_code)]
+pub trait HyprvisorSocket {
+    async fn read_once(&self) -> HyprvisorResult<String>;
+    async fn read_multiple(&self, max_attempt: u8) -> HyprvisorResult<String>;
+
+    async fn write_once(&self, content: &str) -> HyprvisorResult<()>;
+    async fn write_multiple(&self, content: &str, max_attempt: u8) -> HyprvisorResult<()>;
+
+    async fn write_and_read_once(&self, content: &str) -> HyprvisorResult<String>;
+    async fn write_and_read_multiple(
+        &self,
+        content: &str,
+        max_attempt: u8,
+    ) -> HyprvisorResult<String>;
+}
+
+impl HyprvisorSocket for UnixStream {
+    async fn read_once(&self) -> HyprvisorResult<String> {
+        if let Err(e) = self.readable().await {
+            log::error!("Unreadable. Error: {e}");
+            return Err(HyprvisorError::StreamError);
+        }
+
+        let mut buffer = vec![0; 8192];
+        match self.try_read(&mut buffer) {
+            Ok(len) if len > 2 => {
+                let response = String::from_utf8_lossy(&buffer[0..len]).to_string();
+                log::debug!("Success: {response}");
+                Ok(response)
+            }
+            Ok(_) => {
+                log::error!("Invalid message");
+                Err(HyprvisorError::StreamError)
+            }
+            Err(e) => {
+                log::error!("Can't read from stream. Error: {e}");
+                Err(HyprvisorError::StreamError)
+            }
+        }
+    }
+
+    async fn read_multiple(&self, max_attempt: u8) -> HyprvisorResult<String> {
+        for attempt in 0..max_attempt {
+            match self.read_once().await {
+                Ok(response) => {
+                    return Ok(response);
+                }
+                Err(_) => {
+                    log::warn!("Retry {}/{}", attempt + 1, max_attempt);
+                    continue;
+                }
+            }
+        }
+
+        log::error!("Out of attempt");
+        Err(HyprvisorError::StreamError)
+    }
+
+    async fn write_once(&self, content: &str) -> HyprvisorResult<()> {
+        if let Err(e) = self.writable().await {
+            log::error!("Unwritable. Error: {e}");
+            return Err(HyprvisorError::StreamError);
+        }
+
+        match self.try_write(content.as_bytes()) {
+            Ok(len) if len == content.len() => {
+                log::debug!("Message: {content}");
+                log::debug!("{len} bytes written");
+                Ok(())
+            }
+            Ok(len) => {
+                log::warn!("Can't write all message. {len} bytes written");
+                Err(HyprvisorError::StreamError)
+            }
+            Err(e) => {
+                log::error!("Can't write to stream. Error: {e}");
+                Err(HyprvisorError::StreamError)
+            }
+        }
+    }
+
+    async fn write_multiple(&self, content: &str, max_attempt: u8) -> HyprvisorResult<()> {
+        for attempt in 0..max_attempt {
+            match self.write_once(content).await {
+                Ok(_) => {
+                    return Ok(());
+                }
+                Err(_) => {
+                    log::warn!("Retry {}/{}", attempt + 1, max_attempt);
+                    continue;
+                }
+            }
+        }
+
+        log::error!("Out of attempt");
+        Err(HyprvisorError::StreamError)
+    }
+
+    async fn write_and_read_once(&self, content: &str) -> HyprvisorResult<String> {
+        self.write_once(content).await?;
+        self.read_once().await
+    }
+
+    async fn write_and_read_multiple(
+        &self,
+        content: &str,
+        max_attempt: u8,
+    ) -> HyprvisorResult<String> {
+        for attempt in 0..max_attempt {
+            match self.write_and_read_once(content).await {
+                Ok(response) => return Ok(response),
+                Err(_) => {
+                    log::warn!("Retry {}/{}", attempt + 1, max_attempt);
+                    continue;
+                }
+            }
+        }
+
+        log::error!("Maximum retry attempts reached");
+        Err(HyprvisorError::StreamError)
+    }
+}
+
+pub async fn connect_to_socket(
+    socket_path: &str,
+    max_attempt: u8,
+    delay: u64,
+) -> HyprvisorResult<UnixStream> {
+    for attempt in 0..max_attempt {
+        if let Ok(stream) = UnixStream::connect(socket_path).await {
+            return Ok(stream);
+        }
+        log::debug!("Try connect: {} | Attempt: {}", socket_path, attempt + 1);
+        sleep(Duration::from_millis(delay)).await;
+    }
+
+    log::warn!("Failed to connect to socket: {socket_path}");
+    Err(HyprvisorError::StreamError)
+}

@@ -2,6 +2,8 @@ mod client;
 mod common_types;
 mod error;
 mod hyprland;
+mod ipc;
+mod iwd;
 mod opts;
 mod server;
 mod utils;

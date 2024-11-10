@@ -1,8 +1,8 @@
-use super::types::{HyprSocketType, HyprWorkspaceInfo};
+use super::{types::HyprWorkspaceInfo, utils::send_hyprland_command};
 use crate::{
     common_types::{Subscriber, SubscriptionID},
     error::{HyprvisorError, HyprvisorResult},
-    utils,
+    ipc::HyprvisorSocket,
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -37,10 +37,8 @@ fn get_activeworkspace_id(raw_data: &str) -> HyprvisorResult<u32> {
 }
 
 pub(crate) async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
-    let cmd_sock = utils::get_hyprland_socket(&HyprSocketType::Command);
-
-    let handle_active_ws = utils::try_connect_and_wait(&cmd_sock, "j/activeworkspace", 10);
-    let handle_all_ws = utils::try_connect_and_wait(&cmd_sock, "j/workspaces", 10);
+    let handle_active_ws = send_hyprland_command("j/activeworkspace");
+    let handle_all_ws = send_hyprland_command("j/workspaces");
 
     let (raw_active, raw_all) = tokio::try_join!(handle_active_ws, handle_all_ws)?;
 
@@ -72,10 +70,7 @@ pub(super) async fn broadcast_info(
     let ws_json = serde_json::to_string(current_ws_info)?;
 
     for (pid, stream) in ws_subscribers.iter_mut() {
-        if utils::try_write_multiple(stream, &ws_json, 2)
-            .await
-            .is_err()
-        {
+        if stream.write_multiple(&ws_json, 2).await.is_err() {
             log::debug!("Client {pid} is disconnected.");
             disconnected_pid.push(*pid);
         }

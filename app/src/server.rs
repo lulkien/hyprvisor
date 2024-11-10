@@ -2,13 +2,14 @@ use crate::{
     common_types::{ClientInfo, Subscriber, SubscriptionID},
     error::HyprvisorResult,
     hyprland::{start_hyprland_listener, window, workspaces},
+    ipc::*,
     opts::CommandOpts,
-    utils,
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{
     net::{UnixListener, UnixStream},
     sync::Mutex,
+    time::sleep,
 };
 
 pub async fn start_server(socket: &str) -> HyprvisorResult<()> {
@@ -29,33 +30,22 @@ pub async fn start_server(socket: &str) -> HyprvisorResult<()> {
 }
 
 async fn handle_connection(stream: UnixStream, subscribers_ref: Arc<Mutex<Subscriber>>) {
-    let client_message = match utils::try_read_multiple(&stream, 3).await {
+    let client_message = match stream.read_multiple(3).await {
         Ok(msg) => msg,
         Err(_) => return,
     };
+
     log::debug!("Message from client: {}", client_message);
 
     let command: Option<CommandOpts> = serde_json::from_str(&client_message).unwrap_or(None);
-    let client: Option<ClientInfo> = serde_json::from_str(&client_message).unwrap_or(None);
 
-    // If client request a command
     if let Some(cmd) = command {
-        match cmd {
-            CommandOpts::Kill => {
-                let shutdown_message = "Server is shuting down...";
-                log::info!("{shutdown_message}");
-                utils::try_write(&stream, shutdown_message).await.unwrap();
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                std::process::exit(0);
-            }
-            CommandOpts::Ping => {
-                utils::try_write(&stream, "Pong").await.unwrap();
-            }
-        }
+        process_server_command(stream, cmd).await;
         return;
     }
 
-    // If client subscribe
+    let client: Option<ClientInfo> = serde_json::from_str(&client_message).unwrap_or(None);
+
     if let Some(client_info) = client {
         let mut subscribers = subscribers_ref.lock().await;
         subscribers
@@ -84,7 +74,7 @@ async fn handle_connection(stream: UnixStream, subscribers_ref: Arc<Mutex<Subscr
 
         match message {
             Ok(msg) => {
-                if utils::try_write(&stream, &msg).await.is_ok() {
+                if stream.write_once(&msg).await.is_ok() {
                     subscribers
                         .get_mut(&client_info.subscription_id)
                         .unwrap()
@@ -95,6 +85,21 @@ async fn handle_connection(stream: UnixStream, subscribers_ref: Arc<Mutex<Subscr
             Err(e) => {
                 log::error!("Failed to serialize message. Error: {}", e);
             }
+        }
+    }
+}
+
+async fn process_server_command(stream: UnixStream, cmd: CommandOpts) {
+    match cmd {
+        CommandOpts::Kill => {
+            let shutdown_message = "Server is shuting down...";
+            log::info!("{shutdown_message}");
+            stream.write_once(shutdown_message).await.unwrap();
+            sleep(Duration::from_millis(100)).await;
+            std::process::exit(0);
+        }
+        CommandOpts::Ping => {
+            stream.write_once("Pong").await.unwrap();
         }
     }
 }

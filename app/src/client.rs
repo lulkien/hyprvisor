@@ -38,7 +38,7 @@ pub(crate) async fn start_client(
 
     let mut stream = connect_to_socket(socket, 5, 500).await?;
     let init_response = stream.write_and_read_multiple(&subscribe_msg, 10).await?;
-    let result = reformat_response(init_response.as_bytes(), &sub_id, &data_format)?;
+    let result = reformat_response(init_response.as_slice(), &sub_id, &data_format)?;
 
     println!("{result}");
 
@@ -68,7 +68,10 @@ pub(crate) async fn send_server_command(
     stream.write_once(&message).await?;
     let response = stream.read_once().await?;
 
-    log::info!("Response from server: {response}");
+    log::info!(
+        "Response from server: {}",
+        String::from_utf8(response).unwrap()
+    );
     Ok(())
 }
 

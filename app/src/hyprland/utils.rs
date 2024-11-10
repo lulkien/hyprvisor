@@ -1,5 +1,6 @@
-use super::HyprSocketType;
+use super::types::HyprSocketType;
 use crate::{ipc::*, HyprvisorResult};
+
 use std::env;
 
 pub const HYPRLAND_SOCKET_CONNECT_ATTEMPT: u8 = 3;
@@ -21,7 +22,7 @@ pub fn hyprland_socket(socket_type: &HyprSocketType) -> String {
         .unwrap_or_else(|_| format!("/tmp/hypr/{instance_signature}/{socket_name}"))
 }
 
-pub async fn send_hyprland_command(cmd: &str) -> HyprvisorResult<String> {
+pub async fn send_hyprland_command(cmd: &str) -> HyprvisorResult<Vec<u8>> {
     connect_to_socket(
         &hyprland_socket(&HyprSocketType::Command),
         HYPRLAND_SOCKET_CONNECT_ATTEMPT,

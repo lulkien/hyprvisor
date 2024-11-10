@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-pub(crate) enum HyprSocketType {
+pub enum HyprSocketType {
     Event,
     Command,
 }
@@ -27,4 +27,34 @@ pub(crate) struct HyprWorkspaceInfo {
     pub id: u32,
     pub occupied: bool,
     pub active: bool,
+}
+
+pub(super) struct HyprEventList(Vec<HyprEvent>);
+
+impl From<&[u8]> for HyprEventList {
+    fn from(buffer: &[u8]) -> Self {
+        let mut evt_list: Vec<HyprEvent> = String::from_utf8_lossy(buffer)
+            .lines()
+            .map(|line| match line.split(">>").next().unwrap_or_default() {
+                "activewindow" => HyprEvent::WindowChanged,
+                "workspace" => HyprEvent::WorkspaceChanged,
+                "activewindowv2" => HyprEvent::Window2Changed,
+                "createworkspace" => HyprEvent::WorkspaceCreated,
+                "destroyworkspace" => HyprEvent::WorkspaceDestroyed,
+                _ => HyprEvent::IgnoredEvent,
+            })
+            .collect();
+        evt_list.dedup();
+        Self(evt_list)
+    }
+}
+
+impl HyprEventList {
+    pub fn contains(&self, event: &HyprEvent) -> bool {
+        self.0.contains(event)
+    }
+
+    pub fn contains_at_least(&self, events: &[&HyprEvent]) -> bool {
+        events.iter().any(|&event| self.contains(event))
+    }
 }

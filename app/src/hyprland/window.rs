@@ -5,12 +5,12 @@ use crate::{
     hyprland::utils::send_hyprland_command,
     ipc::*,
 };
-use serde_json::{from_str, Value};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub(crate) async fn get_hypr_active_window() -> HyprvisorResult<HyprWinInfo> {
-    let json_data: Value = from_str(&send_hyprland_command("j/activewindow").await?)?;
+    let json_data: serde_json::Value =
+        serde_json::from_slice(&send_hyprland_command("j/activewindow").await?)?;
 
     Ok(HyprWinInfo {
         class: json_data["class"].as_str().unwrap_or_default().to_string(),

@@ -4,47 +4,32 @@ use crate::{
     error::{HyprvisorError, HyprvisorResult},
     ipc::HyprvisorSocket,
 };
+
+use serde_json::{from_slice, Value};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-fn parse_all_workspaces(
-    raw_data: &str,
-    raw_active: &str,
-) -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
-    use serde_json::{from_str, Value};
+pub(crate) async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
+    let (active_workspace, all_workspace) = tokio::try_join!(
+        send_hyprland_command("j/activeworkspace"),
+        send_hyprland_command("j/workspaces")
+    )?;
 
-    let json_objects: Value = from_str(raw_data)?;
-    let active_id = get_activeworkspace_id(raw_active)?;
-    if let Value::Array(js_arr) = json_objects {
-        let result_vec: Vec<HyprWorkspaceInfo> = js_arr
+    let active_ws_id = from_slice::<Value>(&active_workspace)?["id"]
+        .as_u64()
+        .unwrap_or_default() as u32;
+
+    match from_slice(&all_workspace)? {
+        Value::Array(json_array) => Ok(json_array
             .iter()
             .map(|js_obj| HyprWorkspaceInfo {
                 id: js_obj["id"].as_u64().unwrap_or_default() as u32,
                 occupied: js_obj["windows"].as_i64().unwrap_or_default() > 0,
-                active: js_obj["id"].as_u64().unwrap_or_default() as u32 == active_id,
+                active: js_obj["id"].as_u64().unwrap_or_default() as u32 == active_ws_id,
             })
-            .collect();
-
-        return Ok(result_vec);
+            .collect()),
+        _ => Err(HyprvisorError::ParseError),
     }
-    Err(HyprvisorError::ParseError)
-}
-
-fn get_activeworkspace_id(raw_data: &str) -> HyprvisorResult<u32> {
-    use serde_json::{from_str, Value};
-    let json_objects: Value = from_str(raw_data)?;
-    Ok(json_objects["id"].as_u64().unwrap_or_default() as u32)
-}
-
-pub(crate) async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
-    let handle_active_ws = send_hyprland_command("j/activeworkspace");
-    let handle_all_ws = send_hyprland_command("j/workspaces");
-
-    let (raw_active, raw_all) = tokio::try_join!(handle_active_ws, handle_all_ws)?;
-
-    let all_ws = parse_all_workspaces(&raw_all, &raw_active)?;
-
-    Ok(all_ws)
 }
 
 pub(super) async fn broadcast_info(

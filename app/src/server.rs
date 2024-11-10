@@ -30,8 +30,8 @@ pub async fn start_server(socket: &str) -> HyprvisorResult<()> {
 }
 
 async fn handle_connection(stream: UnixStream, subscribers_ref: Arc<Mutex<Subscriber>>) {
-    let client_message = match stream.read_multiple(3).await {
-        Ok(msg) => msg,
+    let client_message: String = match stream.read_multiple(3).await {
+        Ok(msg) => String::from_utf8(msg).unwrap(),
         Err(_) => return,
     };
 

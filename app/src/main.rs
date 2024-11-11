@@ -1,17 +1,13 @@
 mod application;
-mod common_types;
 mod error;
+mod global;
 mod hyprland;
 mod ipc;
-mod iwd;
-mod logger;
 mod opts;
-mod server;
-mod utils;
+mod types;
 
 use crate::{
     error::HyprvisorResult,
-    logger::*,
     opts::{Action, Opts},
 };
 
@@ -31,14 +27,8 @@ async fn run(opts: &Opts) -> HyprvisorResult<()> {
     };
 
     match &opts.action {
-        Action::Daemon => init_logger(LoggerType::Server, level_filter)?,
-        Action::Command(_) => init_logger(LoggerType::Command, level_filter)?,
-        _ => {}
-    };
-
-    match &opts.action {
         Action::Daemon => {
-            todo!()
+            application::server::start_server(level_filter).await?;
         }
         Action::Command(_command) => {
             todo!()

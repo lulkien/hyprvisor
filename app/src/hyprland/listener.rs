@@ -1,16 +1,22 @@
 use super::{types::*, utils::*, window, workspaces};
-use crate::{common_types::Subscriber, ipc::*};
+use crate::{
+    global::{BUFFER_SIZE, SUBSCRIBERS},
+    ipc::*,
+    types::Subscriber,
+};
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use utils::BUFFER_SIZE;
 
-pub async fn start_hyprland_listener(subscribers: Arc<Mutex<Subscriber>>) {
+pub async fn start_hyprland_listener() {
     let event_socket = hyprland_socket(&HyprSocketType::Event);
     let mut current_win_info = HyprWinInfo::default();
     let mut current_ws_info: Vec<HyprWorkspaceInfo> = Vec::new();
 
     log::info!("Start Hyprland event listener");
+
+    let subscribers = SUBSCRIBERS.clone();
+
     let mut stream = match connect_to_socket(&event_socket, 1, 100).await {
         Ok(stream) => stream,
         Err(e) => {

@@ -1,9 +1,9 @@
 use super::types::HyprWinInfo;
 use crate::{
-    common_types::{Subscriber, SubscriptionID},
     error::{HyprvisorError, HyprvisorResult},
     hyprland::utils::send_hyprland_command,
-    ipc::*,
+    ipc::HyprvisorSocket,
+    types::{Subscriber, SubscriptionID},
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;

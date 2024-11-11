@@ -1,11 +1,11 @@
-use super::ping_daemon;
+use super::{utils::ping_daemon, utils::HYPRVISOR_SOCKET};
 use crate::{
-    common_types::{ClientInfo, SubscriptionID},
     error::{HyprvisorError, HyprvisorResult},
+    global::BUFFER_SIZE,
     hyprland::types::{HyprWinInfo, HyprWorkspaceInfo},
-    ipc::{connect_to_socket, utils::BUFFER_SIZE, HyprvisorSocket},
+    ipc::{connect_to_socket, HyprvisorSocket},
     opts::SubscribeOpts,
-    utils::HYPRVISOR_SOCKET,
+    types::{ClientInfo, SubscriptionID},
 };
 
 use humantime::format_rfc3339_seconds;

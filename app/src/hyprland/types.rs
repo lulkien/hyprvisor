@@ -17,13 +17,13 @@ pub(super) enum HyprEvent {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
-pub(crate) struct HyprWinInfo {
+pub struct HyprWinInfo {
     pub class: String,
     pub title: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
-pub(crate) struct HyprWorkspaceInfo {
+pub struct HyprWorkspaceInfo {
     pub id: u32,
     pub occupied: bool,
     pub active: bool,

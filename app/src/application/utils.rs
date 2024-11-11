@@ -2,10 +2,23 @@ use crate::{
     error::{HyprvisorError, HyprvisorResult},
     ipc::{connect_to_socket, HyprvisorSocket},
     opts::CommandOpts,
-    utils::HYPRVISOR_SOCKET,
 };
 
-pub async fn ping_daemon() -> HyprvisorResult<()> {
+use once_cell::sync::Lazy;
+use std::env;
+
+pub(super) static HYPRVISOR_SOCKET: Lazy<String> = Lazy::new(|| {
+    match env::var("HYPRLAND_INSTANCE_SIGNATURE") {
+        Ok(var) => var,
+        Err(_) => panic!("Is hyprland running?"),
+    };
+
+    env::var("XDG_RUNTIME_DIR")
+        .map(|value| format!("{value}/hyprvisor.sock"))
+        .unwrap_or_else(|_| "/tmp/hyprvisor.sock".to_string())
+});
+
+pub(super) async fn ping_daemon() -> HyprvisorResult<()> {
     if std::fs::metadata(HYPRVISOR_SOCKET.as_str()).is_err() {
         log::info!("Server is not running");
         return Err(HyprvisorError::NoDaemon);

@@ -1,8 +1,8 @@
 use super::{types::HyprWorkspaceInfo, utils::send_hyprland_command};
 use crate::{
-    common_types::{Subscriber, SubscriptionID},
     error::{HyprvisorError, HyprvisorResult},
     ipc::HyprvisorSocket,
+    types::{Subscriber, SubscriptionID},
 };
 
 use serde_json::{from_slice, Value};

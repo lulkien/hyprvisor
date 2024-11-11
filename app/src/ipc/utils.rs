@@ -1,12 +1,11 @@
-use once_cell::sync::Lazy;
 use std::time::Duration;
 use tokio::{net::UnixStream, time::sleep};
 
-use crate::error::{HyprvisorError, HyprvisorResult};
+use crate::{
+    error::{HyprvisorError, HyprvisorResult},
+    global::BUFFER_SIZE,
+};
 
-pub static BUFFER_SIZE: Lazy<usize> = Lazy::new(|| 8192);
-
-#[allow(dead_code)]
 pub trait HyprvisorSocket {
     async fn read_once(&self) -> HyprvisorResult<Vec<u8>>;
     async fn read_multiple(&self, max_attempt: u8) -> HyprvisorResult<Vec<u8>>;

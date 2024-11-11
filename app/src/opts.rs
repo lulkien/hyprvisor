@@ -48,8 +48,8 @@ pub enum SubscribeOpts {
     #[command(name = "window", alias = "w")]
     Window { title_length: Option<u32> },
 
-    #[command(name = "wireless")]
-    Wireless,
+    #[command(name = "wireless", alias = "wl")]
+    Wireless { max_ssid_length: Option<u32> },
 }
 
 impl Opts {

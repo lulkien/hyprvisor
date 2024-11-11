@@ -1,9 +1,10 @@
+use super::ping_daemon;
 use crate::{
     common_types::{ClientInfo, SubscriptionID},
     error::{HyprvisorError, HyprvisorResult},
     hyprland::types::{HyprWinInfo, HyprWorkspaceInfo},
     ipc::{connect_to_socket, utils::BUFFER_SIZE, HyprvisorSocket},
-    opts::{CommandOpts, SubscribeOpts},
+    opts::SubscribeOpts,
     utils::HYPRVISOR_SOCKET,
 };
 
@@ -34,7 +35,7 @@ pub async fn start_client(
                 tl.min(100)
             }),
         ),
-        SubscribeOpts::Wireless => {
+        SubscribeOpts::Wireless { max_ssid_length: _ } => {
             todo!()
         }
     };
@@ -82,30 +83,6 @@ fn init_logger(filter: LevelFilter) -> HyprvisorResult<()> {
     logger.apply().map_err(|_| HyprvisorError::LoggerError)
 }
 
-async fn ping_daemon() -> HyprvisorResult<()> {
-    if std::fs::metadata(HYPRVISOR_SOCKET.as_str()).is_err() {
-        log::info!("Server is not running");
-        return Err(HyprvisorError::NoDaemon);
-    }
-
-    let stream = connect_to_socket(&HYPRVISOR_SOCKET, 3, 100)
-        .await
-        .map_err(|_| HyprvisorError::NoDaemon)?;
-
-    stream
-        .write_once(&serde_json::to_string(&CommandOpts::Ping)?)
-        .await?;
-
-    let response = stream.read_once().await?;
-
-    log::info!(
-        "Response from server: {}",
-        String::from_utf8(response).unwrap()
-    );
-
-    Ok(())
-}
-
 async fn subscribe(subcription_id: &SubscriptionID) -> HyprvisorResult<UnixStream> {
     let stream = connect_to_socket(&HYPRVISOR_SOCKET, 1, 100).await?;
 
@@ -122,48 +99,53 @@ fn reformat_response(
     subscription_id: &SubscriptionID,
     extra_data: &u32,
 ) -> HyprvisorResult<String> {
-    let mut formatted_response = String::from_utf8_lossy(buffer).to_string();
     if *extra_data < 1 {
-        return Ok(formatted_response);
+        return Ok(String::from_utf8_lossy(buffer).to_string());
     }
 
     match subscription_id {
-        SubscriptionID::Workspaces => {
-            let origin: Vec<HyprWorkspaceInfo> = serde_json::from_str(&formatted_response)?;
-            if origin.len() > *extra_data as usize {
-                return Ok(formatted_response);
-            }
+        SubscriptionID::Workspaces => reformat_workspace_response(buffer, extra_data),
+        SubscriptionID::Window => reformat_window_response(buffer, extra_data),
+        SubscriptionID::Wireless => reformat_wireless_response(buffer, extra_data),
+    }
+}
 
-            let mut table: HashMap<u32, HyprWorkspaceInfo> =
-                origin.into_iter().map(|ws| (ws.id, ws)).collect();
-
-            (1..=*extra_data).for_each(|id| {
-                table.entry(id).or_insert_with(|| HyprWorkspaceInfo {
-                    id,
-                    occupied: false,
-                    active: false,
-                });
-            });
-
-            let mut modified: Vec<HyprWorkspaceInfo> = table.into_values().collect();
-            modified.sort_by_key(|info| info.id);
-
-            formatted_response = serde_json::to_string(&modified)?;
-        }
-        SubscriptionID::Window => {
-            let win_info: Result<HyprWinInfo, _> = serde_json::from_slice(buffer);
-            let mut win_info = match win_info {
-                Ok(value) => value,
-                Err(_) => return Ok(formatted_response),
-            };
-
-            if let Some(title) = win_info.title.get(..*extra_data as usize) {
-                win_info.title = format!("{}...", String::from_utf8_lossy(title.as_bytes()));
-                formatted_response = serde_json::to_string(&win_info)?;
-            }
-        }
-        SubscriptionID::Wireless => {}
+fn reformat_workspace_response(buffer: &[u8], extra_data: &u32) -> HyprvisorResult<String> {
+    let workspaces: Vec<HyprWorkspaceInfo> = serde_json::from_slice(buffer)?;
+    if workspaces.len() > *extra_data as usize {
+        return Ok(String::from_utf8_lossy(buffer).to_string());
     }
 
-    Ok(formatted_response)
+    let mut table: HashMap<u32, HyprWorkspaceInfo> =
+        workspaces.into_iter().map(|ws| (ws.id, ws)).collect();
+
+    (1..=*extra_data).for_each(|id| {
+        table.entry(id).or_insert_with(|| HyprWorkspaceInfo {
+            id,
+            occupied: false,
+            active: false,
+        });
+    });
+
+    let mut modified: Vec<HyprWorkspaceInfo> = table.into_values().collect();
+    modified.sort_by_key(|info| info.id);
+
+    serde_json::to_string(&modified).map_err(|_| HyprvisorError::ParseError)
+}
+
+fn reformat_window_response(buffer: &[u8], extra_data: &u32) -> HyprvisorResult<String> {
+    let mut win_info: HyprWinInfo = match serde_json::from_slice(buffer) {
+        Ok(value) => value,
+        Err(_) => return Ok(String::from_utf8_lossy(buffer).to_string()),
+    };
+
+    if let Some(title) = win_info.title.get(..*extra_data as usize) {
+        win_info.title = format!("{}...", String::from_utf8_lossy(title.as_bytes()));
+    }
+
+    serde_json::to_string(&win_info).map_err(|_| HyprvisorError::ParseError)
+}
+
+fn reformat_wireless_response(_buffer: &[u8], _extra_data: &u32) -> HyprvisorResult<String> {
+    todo!()
 }

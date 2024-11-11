@@ -6,9 +6,16 @@ use crate::{
     types::{Subscriber, SubscriptionID},
 };
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::{net::UnixStream, sync::Mutex};
 
-pub async fn get_hypr_active_window() -> HyprvisorResult<HyprWinInfo> {
+pub async fn response_to_subscription(stream: &UnixStream) -> HyprvisorResult<()> {
+    match serde_json::to_string(&get_hypr_active_window().await?) {
+        Ok(win_info) => stream.write_once(&win_info).await,
+        Err(e) => Err(HyprvisorError::SerdeError(e)),
+    }
+}
+
+async fn get_hypr_active_window() -> HyprvisorResult<HyprWinInfo> {
     let json_data: serde_json::Value =
         serde_json::from_slice(&send_hyprland_command("j/activewindow").await?)?;
 

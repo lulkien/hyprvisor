@@ -7,9 +7,16 @@ use crate::{
 
 use serde_json::{from_slice, Value};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::{net::UnixStream, sync::Mutex};
 
-pub async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
+pub async fn response_to_subscription(stream: &UnixStream) -> HyprvisorResult<()> {
+    match serde_json::to_string(&get_hypr_workspace_info().await?) {
+        Ok(win_info) => stream.write_once(&win_info).await,
+        Err(e) => Err(HyprvisorError::SerdeError(e)),
+    }
+}
+
+async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
     let (active_workspace, all_workspace) = tokio::try_join!(
         send_hyprland_command("j/activeworkspace"),
         send_hyprland_command("j/workspaces")

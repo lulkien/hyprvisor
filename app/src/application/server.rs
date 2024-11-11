@@ -3,7 +3,7 @@ use crate::{
     application::utils::HYPRVISOR_SOCKET,
     error::{HyprvisorError, HyprvisorResult},
     global::SUBSCRIBERS,
-    hyprland::{get_hypr_active_window, get_hypr_workspace_info, start_hyprland_listener},
+    hyprland::{start_hyprland_listener, window, workspaces},
     ipc::HyprvisorSocket,
     opts::CommandOpts,
     types::{ClientInfo, SubscriptionID},
@@ -70,27 +70,25 @@ fn init_logger(filter: LevelFilter) -> HyprvisorResult<()> {
     logger.apply().map_err(|_| HyprvisorError::LoggerError)
 }
 
-async fn handle_connection(stream: UnixStream) {
-    let client_message = match stream.read_multiple(3).await {
+async fn handle_connection(stream: UnixStream) -> HyprvisorResult<()> {
+    let buffer = match stream.read_multiple(3).await {
         Ok(buf) => buf,
-        Err(_) => return,
+        Err(_) => return Err(HyprvisorError::StreamError),
     };
 
-    log::debug!(
-        "Message from client: {}",
-        String::from_utf8_lossy(&client_message)
-    );
+    log::debug!("Message from client: {}", String::from_utf8_lossy(&buffer));
 
-    if let Some(command) = serde_json::from_slice(&client_message).unwrap_or(None) {
+    if let Some(command) = serde_json::from_slice(&buffer).unwrap_or(None) {
         process_server_command(stream, command).await;
-        return;
+        return Ok(());
     }
 
-    if let Some(client_info) =
-        serde_json::from_slice::<Option<ClientInfo>>(&client_message).unwrap_or(None)
+    if let Some(client_info) = serde_json::from_slice::<Option<ClientInfo>>(&buffer).unwrap_or(None)
     {
-        register_subscription(stream, client_info).await;
+        register_subscription(stream, client_info).await?
     }
+
+    Err(HyprvisorError::StreamError)
 }
 
 async fn process_server_command(stream: UnixStream, cmd: CommandOpts) {
@@ -108,7 +106,7 @@ async fn process_server_command(stream: UnixStream, cmd: CommandOpts) {
     }
 }
 
-async fn register_subscription(stream: UnixStream, client_info: ClientInfo) {
+async fn register_subscription(stream: UnixStream, client_info: ClientInfo) -> HyprvisorResult<()> {
     let subscribers = SUBSCRIBERS.clone();
     let mut subscribers = subscribers.lock().await;
     subscribers
@@ -121,32 +119,26 @@ async fn register_subscription(stream: UnixStream, client_info: ClientInfo) {
         client_info.subscription_id
     );
 
-    let message = match client_info.subscription_id {
-        SubscriptionID::Window => match get_hypr_active_window().await {
-            Ok(win_info) => serde_json::to_string(&win_info),
-            Err(_) => return,
-        },
-        SubscriptionID::Workspaces => match get_hypr_workspace_info().await {
-            Ok(ws_info) => serde_json::to_string(&ws_info),
-            Err(_) => return,
-        },
-        SubscriptionID::Wireless => {
+    match client_info.subscription_id {
+        SubscriptionID::Window => {
+            window::response_to_subscription(&stream).await?;
+        }
+
+        SubscriptionID::Workspaces => {
+            workspaces::response_to_subscription(&stream).await?;
+        }
+
+        _ => {
             todo!()
         }
     };
 
-    match message {
-        Ok(msg) => {
-            if stream.write_once(&msg).await.is_ok() {
-                subscribers
-                    .get_mut(&client_info.subscription_id)
-                    .unwrap()
-                    .insert(client_info.process_id, stream);
-                log::info!("Client connected.");
-            }
-        }
-        Err(e) => {
-            log::error!("Failed to serialize message. Error: {}", e);
-        }
-    }
+    subscribers
+        .get_mut(&client_info.subscription_id)
+        .unwrap()
+        .insert(client_info.process_id, stream);
+
+    log::info!("Client connected.");
+
+    Ok(())
 }

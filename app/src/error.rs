@@ -1,9 +1,7 @@
 use std::{fmt::Display, io, result::Result};
 
-// This result type will be used everywhere
 pub type HyprvisorResult<T> = Result<T, HyprvisorError>;
 
-#[allow(unused)]
 #[derive(Debug)]
 pub enum HyprvisorError {
     DaemonRunning,

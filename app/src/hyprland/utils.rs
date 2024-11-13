@@ -31,7 +31,7 @@ pub(super) async fn send_hyprland_command(cmd: &str) -> HyprvisorResult<Vec<u8>>
         HYPRLAND_SOCKET_CONNECT_DELAY,
     )
     .await?
-    .write_and_read_multiple(cmd, 10)
+    .write_and_read_multiple(cmd.as_bytes(), 10)
     .await
 }
 

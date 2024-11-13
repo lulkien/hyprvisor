@@ -1,8 +1,8 @@
 use super::{types::*, utils::*, window, workspaces};
 use crate::{
+    application::types::Subscriber,
     global::{BUFFER_SIZE, SUBSCRIBERS},
     ipc::*,
-    types::Subscriber,
 };
 
 use std::sync::Arc;

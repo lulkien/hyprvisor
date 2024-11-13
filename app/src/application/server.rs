@@ -1,12 +1,17 @@
-use super::utils::ping_daemon;
+use super::{
+    types::{ClientInfo, SubscriptionID},
+    utils::ping_daemon,
+};
 use crate::{
     application::utils::HYPRVISOR_SOCKET,
     error::{HyprvisorError, HyprvisorResult},
     global::SUBSCRIBERS,
     hyprland::{start_hyprland_listener, window, workspaces},
-    ipc::HyprvisorSocket,
+    ipc::{
+        message::{HyprvisorMessage, MessageType},
+        HyprvisorSocket,
+    },
     opts::CommandOpts,
-    types::{ClientInfo, SubscriptionID},
 };
 
 use humantime::format_rfc3339_seconds;
@@ -76,40 +81,35 @@ async fn handle_connection(stream: UnixStream) -> HyprvisorResult<()> {
         Err(_) => return Err(HyprvisorError::StreamError),
     };
 
-    log::debug!("Message from client: {}", String::from_utf8_lossy(&buffer));
-
-    if let Some(command) = serde_json::from_slice(&buffer).unwrap_or(None) {
-        process_server_command(stream, command).await;
-        return Ok(());
+    let message: HyprvisorMessage = buffer.as_slice().try_into()?;
+    match message.message_type {
+        MessageType::Command => process_command(stream, message).await,
+        MessageType::Subscription => register_client(stream, message).await,
     }
-
-    if let Some(client_info) = serde_json::from_slice::<Option<ClientInfo>>(&buffer).unwrap_or(None)
-    {
-        register_subscription(stream, client_info).await?
-    }
-
-    Err(HyprvisorError::StreamError)
 }
 
-async fn process_server_command(stream: UnixStream, cmd: CommandOpts) {
-    match cmd {
+async fn process_command(stream: UnixStream, message: HyprvisorMessage) -> HyprvisorResult<()> {
+    if message.header != size_of::<u8>() {
+        return Err(HyprvisorError::InvalidMessage);
+    }
+
+    match CommandOpts::try_from(message.payload[0])? {
+        CommandOpts::Ping => stream.write_once(b"Pong").await,
         CommandOpts::Kill => {
-            let shutdown_message = "Server is shuting down...";
-            log::info!("{shutdown_message}");
-            stream.write_once(shutdown_message).await.unwrap();
+            let _ = stream.write_once(b"Server is shuting down...").await;
             sleep(Duration::from_millis(100)).await;
             std::process::exit(0);
         }
-        CommandOpts::Ping => {
-            stream.write_once("Pong").await.unwrap();
-        }
     }
 }
 
-async fn register_subscription(stream: UnixStream, client_info: ClientInfo) -> HyprvisorResult<()> {
+async fn register_client(stream: UnixStream, message: HyprvisorMessage) -> HyprvisorResult<()> {
+    let client_info = ClientInfo::try_from(message.payload.as_slice())?;
+
     let subscribers = SUBSCRIBERS.clone();
-    let mut subscribers = subscribers.lock().await;
-    subscribers
+
+    let mut subscribers_ref = subscribers.lock().await;
+    subscribers_ref
         .entry(client_info.subscription_id.clone())
         .or_insert(HashMap::new());
 
@@ -133,7 +133,7 @@ async fn register_subscription(stream: UnixStream, client_info: ClientInfo) -> H
         }
     };
 
-    subscribers
+    subscribers_ref
         .get_mut(&client_info.subscription_id)
         .unwrap()
         .insert(client_info.process_id, stream);

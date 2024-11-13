@@ -13,6 +13,7 @@ pub enum HyprvisorError {
     NoSubscriber,
     FalseAlarm,
     LoggerError,
+    InvalidMessage,
 }
 
 impl From<io::Error> for HyprvisorError {
@@ -51,6 +52,7 @@ impl Display for HyprvisorError {
             HyprvisorError::NoSubscriber => write!(f, "No subscriber"),
             HyprvisorError::FalseAlarm => write!(f, "False alarm"),
             HyprvisorError::LoggerError => write!(f, "Cannot init logger"),
+            HyprvisorError::InvalidMessage => write!(f, "Invalid message"),
         }
     }
 }

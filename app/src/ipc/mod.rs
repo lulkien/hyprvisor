@@ -1,3 +1,4 @@
+pub mod message;
 pub mod utils;
 
 pub use utils::connect_to_socket;

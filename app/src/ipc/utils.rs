@@ -13,13 +13,13 @@ pub trait HyprvisorSocket {
     async fn read_multiple_buf(&self, buffer: &mut [u8], max_attempt: u8)
         -> HyprvisorResult<usize>;
 
-    async fn write_once(&self, content: &str) -> HyprvisorResult<()>;
-    async fn write_multiple(&self, content: &str, max_attempt: u8) -> HyprvisorResult<()>;
+    async fn write_once(&self, content: &[u8]) -> HyprvisorResult<()>;
+    async fn write_multiple(&self, content: &[u8], max_attempt: u8) -> HyprvisorResult<()>;
 
-    async fn write_and_read_once(&self, content: &str) -> HyprvisorResult<Vec<u8>>;
+    async fn write_and_read_once(&self, content: &[u8]) -> HyprvisorResult<Vec<u8>>;
     async fn write_and_read_multiple(
         &self,
-        content: &str,
+        content: &[u8],
         max_attempt: u8,
     ) -> HyprvisorResult<Vec<u8>>;
 }
@@ -102,15 +102,15 @@ impl HyprvisorSocket for UnixStream {
         Err(HyprvisorError::StreamError)
     }
 
-    async fn write_once(&self, content: &str) -> HyprvisorResult<()> {
+    async fn write_once(&self, content: &[u8]) -> HyprvisorResult<()> {
         if let Err(e) = self.writable().await {
             log::error!("Unwritable. Error: {e}");
             return Err(HyprvisorError::StreamError);
         }
 
-        match self.try_write(content.as_bytes()) {
+        match self.try_write(content) {
             Ok(len) if len == content.len() => {
-                log::debug!("Message: {content}");
+                log::debug!("Message: {}", String::from_utf8_lossy(content));
                 log::debug!("{len} bytes written");
                 Ok(())
             }
@@ -125,7 +125,7 @@ impl HyprvisorSocket for UnixStream {
         }
     }
 
-    async fn write_multiple(&self, content: &str, max_attempt: u8) -> HyprvisorResult<()> {
+    async fn write_multiple(&self, content: &[u8], max_attempt: u8) -> HyprvisorResult<()> {
         for attempt in 0..max_attempt {
             match self.write_once(content).await {
                 Ok(_) => {
@@ -142,14 +142,14 @@ impl HyprvisorSocket for UnixStream {
         Err(HyprvisorError::StreamError)
     }
 
-    async fn write_and_read_once(&self, content: &str) -> HyprvisorResult<Vec<u8>> {
+    async fn write_and_read_once(&self, content: &[u8]) -> HyprvisorResult<Vec<u8>> {
         self.write_once(content).await?;
         self.read_once().await
     }
 
     async fn write_and_read_multiple(
         &self,
-        content: &str,
+        content: &[u8],
         max_attempt: u8,
     ) -> HyprvisorResult<Vec<u8>> {
         for attempt in 0..max_attempt {

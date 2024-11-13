@@ -1,11 +1,13 @@
-use super::{utils::ping_daemon, utils::HYPRVISOR_SOCKET};
+use super::{
+    types::{ClientInfo, SubscriptionID},
+    utils::{ping_daemon, HYPRVISOR_SOCKET},
+};
 use crate::{
     error::{HyprvisorError, HyprvisorResult},
     global::BUFFER_SIZE,
     hyprland::types::{HyprWinInfo, HyprWorkspaceInfo},
-    ipc::{connect_to_socket, HyprvisorSocket},
+    ipc::{connect_to_socket, message::HyprvisorMessage, HyprvisorSocket},
     opts::SubscribeOpts,
-    types::{ClientInfo, SubscriptionID},
 };
 
 use humantime::format_rfc3339_seconds;
@@ -13,31 +15,29 @@ use log::LevelFilter;
 use std::{collections::HashMap, process, time::SystemTime};
 use tokio::net::UnixStream;
 
-pub async fn start_client(
-    subscription_opts: &SubscribeOpts,
-    filter: LevelFilter,
-) -> HyprvisorResult<()> {
+pub async fn start_client(opts: &SubscribeOpts, filter: LevelFilter) -> HyprvisorResult<()> {
     init_logger(filter)?;
     ping_daemon().await?;
 
-    let (subcription_id, extra_data): (SubscriptionID, u32) = match subscription_opts {
+    let (subcription_id, extra_data): (SubscriptionID, u32) = match opts {
         SubscribeOpts::Workspaces { fix_workspace } => (
             SubscriptionID::Workspaces,
             fix_workspace.map_or(0, |fw| {
                 log::warn!("Max workspaces = 10");
-                fw.min(10)
+                fw.min(10).into()
             }),
         ),
         SubscribeOpts::Window { title_length } => (
             SubscriptionID::Window,
-            title_length.map_or(0, |tl| {
+            title_length.map_or(50, |tl| {
                 log::warn!("Max title length = 100");
-                tl.min(100)
+                tl.min(u8::MAX.into()).into()
             }),
         ),
-        SubscribeOpts::Wireless { max_ssid_length: _ } => {
-            todo!()
-        }
+        SubscribeOpts::Wireless { ssid_length } => (
+            SubscriptionID::Wireless,
+            ssid_length.map_or(25, |sl| sl.min(u8::MAX.into()).into()),
+        ),
     };
 
     let stream = subscribe(&subcription_id).await?;
@@ -86,10 +86,12 @@ fn init_logger(filter: LevelFilter) -> HyprvisorResult<()> {
 async fn subscribe(subcription_id: &SubscriptionID) -> HyprvisorResult<UnixStream> {
     let stream = connect_to_socket(&HYPRVISOR_SOCKET, 1, 100).await?;
 
-    let subcription_msg =
-        serde_json::to_string(&ClientInfo::new(process::id(), subcription_id.clone()))?;
+    let message = HyprvisorMessage::from(ClientInfo {
+        subscription_id: subcription_id.clone(),
+        process_id: process::id(),
+    });
 
-    stream.write_multiple(&subcription_msg, 3).await?;
+    stream.write_multiple(&Vec::from(message), 3).await?;
 
     Ok(stream)
 }

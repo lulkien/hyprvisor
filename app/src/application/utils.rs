@@ -29,7 +29,7 @@ pub(super) async fn ping_daemon() -> HyprvisorResult<()> {
         .map_err(|_| HyprvisorError::NoDaemon)?;
 
     stream
-        .write_once(&serde_json::to_string(&CommandOpts::Ping)?)
+        .write_once(serde_json::to_string(&CommandOpts::Ping)?.as_bytes())
         .await?;
 
     let response = stream.read_once().await?;

@@ -1,4 +1,4 @@
-use crate::types::Subscriber;
+use crate::application::types::Subscriber;
 
 use once_cell::sync::Lazy;
 use std::sync::Arc;

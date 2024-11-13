@@ -4,7 +4,6 @@ mod global;
 mod hyprland;
 mod ipc;
 mod opts;
-mod types;
 
 use crate::{
     error::HyprvisorResult,

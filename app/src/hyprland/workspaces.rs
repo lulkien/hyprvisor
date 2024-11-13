@@ -1,8 +1,8 @@
 use super::{types::HyprWorkspaceInfo, utils::send_hyprland_command};
 use crate::{
+    application::types::{Subscriber, SubscriptionID},
     error::{HyprvisorError, HyprvisorResult},
     ipc::HyprvisorSocket,
-    types::{Subscriber, SubscriptionID},
 };
 
 use serde_json::{from_slice, Value};
@@ -11,7 +11,7 @@ use tokio::{net::UnixStream, sync::Mutex};
 
 pub async fn response_to_subscription(stream: &UnixStream) -> HyprvisorResult<()> {
     match serde_json::to_string(&get_hypr_workspace_info().await?) {
-        Ok(win_info) => stream.write_once(&win_info).await,
+        Ok(win_info) => stream.write_once(win_info.as_bytes()).await,
         Err(e) => Err(HyprvisorError::SerdeError(e)),
     }
 }
@@ -62,7 +62,7 @@ pub(super) async fn broadcast_info(
     let ws_json = serde_json::to_string(current_ws_info)?;
 
     for (pid, stream) in ws_subscribers.iter_mut() {
-        if stream.write_multiple(&ws_json, 2).await.is_err() {
+        if stream.write_multiple(ws_json.as_bytes(), 2).await.is_err() {
             log::debug!("Client {pid} is disconnected.");
             disconnected_pid.push(*pid);
         }

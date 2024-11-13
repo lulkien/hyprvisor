@@ -1,16 +1,16 @@
 use super::types::HyprWinInfo;
 use crate::{
+    application::types::{Subscriber, SubscriptionID},
     error::{HyprvisorError, HyprvisorResult},
     hyprland::utils::send_hyprland_command,
     ipc::HyprvisorSocket,
-    types::{Subscriber, SubscriptionID},
 };
 use std::sync::Arc;
 use tokio::{net::UnixStream, sync::Mutex};
 
 pub async fn response_to_subscription(stream: &UnixStream) -> HyprvisorResult<()> {
     match serde_json::to_string(&get_hypr_active_window().await?) {
-        Ok(win_info) => stream.write_once(&win_info).await,
+        Ok(win_info) => stream.write_once(win_info.as_bytes()).await,
         Err(e) => Err(HyprvisorError::SerdeError(e)),
     }
 }
@@ -48,7 +48,11 @@ pub(super) async fn broadcast_info(
     let window_json = serde_json::to_string(current_win_info)?;
 
     for (pid, stream) in win_subscribers.iter_mut() {
-        if stream.write_multiple(&window_json, 2).await.is_err() {
+        if stream
+            .write_multiple(window_json.as_bytes(), 2)
+            .await
+            .is_err()
+        {
             log::debug!("Client {pid} is disconnected.");
             disconnected_pid.push(*pid);
         }

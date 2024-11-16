@@ -6,14 +6,17 @@ pub type HyprvisorResult<T> = Result<T, HyprvisorError>;
 pub enum HyprvisorError {
     DaemonRunning,
     NoDaemon,
-    SerdeError(serde_json::Error),
+    JsonError(serde_json::Error),
+    BincodeError(bincode::Error),
     IoError(io::Error),
+    IpcError,
     StreamError,
     ParseError,
     NoSubscriber,
     FalseAlarm,
     LoggerError,
     InvalidMessage,
+    InvalidResponse,
 }
 
 impl From<io::Error> for HyprvisorError {
@@ -24,7 +27,13 @@ impl From<io::Error> for HyprvisorError {
 
 impl From<serde_json::Error> for HyprvisorError {
     fn from(value: serde_json::Error) -> Self {
-        HyprvisorError::SerdeError(value)
+        HyprvisorError::JsonError(value)
+    }
+}
+
+impl From<bincode::Error> for HyprvisorError {
+    fn from(value: bincode::Error) -> Self {
+        HyprvisorError::BincodeError(value)
     }
 }
 
@@ -45,7 +54,9 @@ impl Display for HyprvisorError {
         match self {
             HyprvisorError::DaemonRunning => write!(f, "Daemon is already running"),
             HyprvisorError::NoDaemon => write!(f, "No daemon found"),
-            HyprvisorError::SerdeError(err) => write!(f, "Serde error: {}", err),
+            HyprvisorError::JsonError(err) => write!(f, "Serde json error: {}", err),
+            HyprvisorError::BincodeError(err) => write!(f, "Serde bincode error: {}", err),
+            HyprvisorError::IpcError => write!(f, "Inter-processes communication error"),
             HyprvisorError::IoError(err) => write!(f, "IO error: {}", err),
             HyprvisorError::StreamError => write!(f, "Stream error"),
             HyprvisorError::ParseError => write!(f, "Parse error"),
@@ -53,6 +64,7 @@ impl Display for HyprvisorError {
             HyprvisorError::FalseAlarm => write!(f, "False alarm"),
             HyprvisorError::LoggerError => write!(f, "Cannot init logger"),
             HyprvisorError::InvalidMessage => write!(f, "Invalid message"),
+            HyprvisorError::InvalidResponse => write!(f, "Invalid response"),
         }
     }
 }

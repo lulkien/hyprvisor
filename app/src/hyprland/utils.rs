@@ -25,14 +25,17 @@ pub(super) fn hyprland_socket(socket_type: &HyprSocketType) -> String {
 }
 
 pub(super) async fn send_hyprland_command(cmd: &str) -> HyprvisorResult<Vec<u8>> {
+    let mut buffer = vec![0; 4096];
+
     connect_to_socket(
         &hyprland_socket(&HyprSocketType::Command),
         HYPRLAND_SOCKET_CONNECT_ATTEMPT,
         HYPRLAND_SOCKET_CONNECT_DELAY,
     )
     .await?
-    .write_and_read_multiple(cmd.as_bytes(), 10)
+    .try_send_and_receive_bytes(cmd.as_bytes(), &mut buffer, 10)
     .await
+    .map(|recv_len| buffer[..recv_len].to_vec())
 }
 
 pub(super) async fn fetch_hyprland_event(

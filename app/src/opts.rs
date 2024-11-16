@@ -45,13 +45,13 @@ pub enum CommandOpts {
 #[derive(Debug, PartialEq, Deserialize, Serialize, Subcommand)]
 pub enum SubscribeOpts {
     #[command(name = "workspaces", alias = "ws")]
-    Workspaces { fix_workspace: Option<u16> },
+    Workspaces { fix_workspace: Option<u32> },
 
     #[command(name = "window", alias = "w")]
-    Window { title_length: Option<u16> },
+    Window { title_length: Option<u32> },
 
     #[command(name = "wireless", alias = "wl")]
-    Wireless { ssid_length: Option<u16> },
+    Wireless { ssid_length: Option<u32> },
 }
 
 impl Opts {

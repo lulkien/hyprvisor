@@ -1,6 +1,6 @@
 use crate::{
     error::{HyprvisorError, HyprvisorResult},
-    ipc::{connect_to_socket, HyprvisorSocket},
+    ipc::{connect_to_socket, message::MessageType, HyprvisorReadSock, HyprvisorWriteSock},
     opts::CommandOpts,
 };
 
@@ -28,15 +28,17 @@ pub(super) async fn ping_daemon() -> HyprvisorResult<()> {
         .await
         .map_err(|_| HyprvisorError::NoDaemon)?;
 
-    stream
-        .write_once(serde_json::to_string(&CommandOpts::Ping)?.as_bytes())
-        .await?;
+    stream.write_message(CommandOpts::Ping.into()).await?;
 
-    let response = stream.read_once().await?;
+    let response = stream.read_message().await?;
+
+    if response.message_type != MessageType::Response {
+        return Err(HyprvisorError::InvalidResponse);
+    }
 
     log::info!(
         "Response from server: {}",
-        String::from_utf8(response).unwrap()
+        String::from_utf8(response.payload).map_err(|_| HyprvisorError::ParseError)?
     );
 
     Ok(())

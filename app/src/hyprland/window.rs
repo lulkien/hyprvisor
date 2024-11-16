@@ -1,58 +1,53 @@
-use super::types::HyprWinInfo;
+use super::types::HyprWindowInfo;
 use crate::{
-    application::types::{Subscriber, SubscriptionID},
+    application::types::SubscriptionID,
     error::{HyprvisorError, HyprvisorResult},
+    global::SUBSCRIBERS,
     hyprland::utils::send_hyprland_command,
-    ipc::HyprvisorSocket,
+    ipc::{message::HyprvisorMessage, HyprvisorWriteSock},
 };
-use std::sync::Arc;
-use tokio::{net::UnixStream, sync::Mutex};
+
+use tokio::net::UnixStream;
 
 pub async fn response_to_subscription(stream: &UnixStream) -> HyprvisorResult<()> {
-    match serde_json::to_string(&get_hypr_active_window().await?) {
-        Ok(win_info) => stream.write_once(win_info.as_bytes()).await,
-        Err(e) => Err(HyprvisorError::SerdeError(e)),
+    match get_hypr_active_window().await {
+        Ok(window) => stream.write_message(window.try_into()?).await.map(|_| ()),
+        Err(e) => Err(e),
     }
 }
 
-async fn get_hypr_active_window() -> HyprvisorResult<HyprWinInfo> {
+async fn get_hypr_active_window() -> HyprvisorResult<HyprWindowInfo> {
     let json_data: serde_json::Value =
         serde_json::from_slice(&send_hyprland_command("j/activewindow").await?)?;
 
-    Ok(HyprWinInfo {
+    Ok(HyprWindowInfo {
         class: json_data["class"].as_str().unwrap_or_default().to_string(),
         title: json_data["title"].as_str().unwrap_or_default().to_string(),
     })
 }
 
-pub(super) async fn broadcast_info(
-    current_win_info: &mut HyprWinInfo,
-    subscribers: Arc<Mutex<Subscriber>>,
-) -> HyprvisorResult<()> {
-    let mut subscribers = subscribers.lock().await;
-    let win_subscribers = match subscribers.get_mut(&SubscriptionID::Window) {
+pub(super) async fn broadcast_info(current_win_info: &mut HyprWindowInfo) -> HyprvisorResult<()> {
+    let mut subscribers_ref = SUBSCRIBERS.lock().await;
+
+    let subscribers = match subscribers_ref.get_mut(&SubscriptionID::Window) {
         Some(subs) if !subs.is_empty() => subs,
         Some(_) | None => {
             return Err(HyprvisorError::NoSubscriber);
         }
     };
 
-    let new_win_info = get_hypr_active_window().await?;
-    if *current_win_info == new_win_info {
+    let window = get_hypr_active_window().await?;
+    if *current_win_info == window {
         return Err(HyprvisorError::FalseAlarm);
     }
 
-    *current_win_info = new_win_info.clone();
+    let message: HyprvisorMessage = HyprvisorMessage::try_from(window.clone())?;
+    *current_win_info = window;
 
     let mut disconnected_pid = Vec::new();
-    let window_json = serde_json::to_string(current_win_info)?;
 
-    for (pid, stream) in win_subscribers.iter_mut() {
-        if stream
-            .write_multiple(window_json.as_bytes(), 2)
-            .await
-            .is_err()
-        {
+    for (pid, stream) in subscribers.iter_mut() {
+        if stream.try_write_message(&message, 2).await.is_err() {
             log::debug!("Client {pid} is disconnected.");
             disconnected_pid.push(*pid);
         }
@@ -60,7 +55,7 @@ pub(super) async fn broadcast_info(
 
     for pid in disconnected_pid {
         log::info!("Remove {pid}");
-        win_subscribers.remove(&pid);
+        subscribers.remove(&pid);
     }
 
     Ok(())

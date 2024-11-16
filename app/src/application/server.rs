@@ -9,7 +9,7 @@ use crate::{
     hyprland::{start_hyprland_listener, window, workspaces},
     ipc::{
         message::{HyprvisorMessage, MessageType},
-        HyprvisorSocket,
+        HyprvisorReadSock, HyprvisorWriteSock,
     },
     opts::CommandOpts,
 };
@@ -38,7 +38,7 @@ pub async fn start_server(filter: LevelFilter) -> HyprvisorResult<()> {
         log::debug!("Removed: {}", HYPRVISOR_SOCKET.as_str());
     }
 
-    log::info!("---------- START HYPRVISOR DAEMON ----------");
+    log::info!("-------------------- START HYPRVISOR DAEMON --------------------");
 
     tokio::spawn(start_hyprland_listener());
 
@@ -76,15 +76,17 @@ fn init_logger(filter: LevelFilter) -> HyprvisorResult<()> {
 }
 
 async fn handle_connection(stream: UnixStream) -> HyprvisorResult<()> {
-    let buffer = match stream.read_multiple(3).await {
-        Ok(buf) => buf,
-        Err(_) => return Err(HyprvisorError::StreamError),
-    };
+    let message = stream.try_read_message(3).await?;
+    if !message.is_valid() {
+        return Err(HyprvisorError::InvalidMessage);
+    }
 
-    let message: HyprvisorMessage = buffer.as_slice().try_into()?;
     match message.message_type {
         MessageType::Command => process_command(stream, message).await,
         MessageType::Subscription => register_client(stream, message).await,
+        MessageType::Response => {
+            todo!()
+        }
     }
 }
 
@@ -94,13 +96,20 @@ async fn process_command(stream: UnixStream, message: HyprvisorMessage) -> Hyprv
     }
 
     match CommandOpts::try_from(message.payload[0])? {
-        CommandOpts::Ping => stream.write_once(b"Pong").await,
+        CommandOpts::Ping => {
+            let message = HyprvisorMessage::from("Pong");
+            let _ = stream.write_message(message).await;
+        }
         CommandOpts::Kill => {
-            let _ = stream.write_once(b"Server is shuting down...").await;
+            let message = HyprvisorMessage::from("Server is shutting down...");
+            let _ = stream.write_message(message).await;
+
             sleep(Duration::from_millis(100)).await;
             std::process::exit(0);
         }
     }
+
+    Ok(())
 }
 
 async fn register_client(stream: UnixStream, message: HyprvisorMessage) -> HyprvisorResult<()> {
@@ -128,7 +137,7 @@ async fn register_client(stream: UnixStream, message: HyprvisorMessage) -> Hyprv
             workspaces::response_to_subscription(&stream).await?;
         }
 
-        _ => {
+        SubscriptionID::Wireless => {
             todo!()
         }
     };

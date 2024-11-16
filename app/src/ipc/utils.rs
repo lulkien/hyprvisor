@@ -6,164 +6,205 @@ use crate::{
     global::BUFFER_SIZE,
 };
 
-pub trait HyprvisorSocket {
-    async fn read_once(&self) -> HyprvisorResult<Vec<u8>>;
-    async fn read_multiple(&self, max_attempt: u8) -> HyprvisorResult<Vec<u8>>;
-    async fn read_once_buf(&self, buffer: &mut [u8]) -> HyprvisorResult<usize>;
-    async fn read_multiple_buf(&self, buffer: &mut [u8], max_attempt: u8)
-        -> HyprvisorResult<usize>;
+use super::message::HyprvisorMessage;
 
-    async fn write_once(&self, content: &[u8]) -> HyprvisorResult<()>;
-    async fn write_multiple(&self, content: &[u8], max_attempt: u8) -> HyprvisorResult<()>;
+#[allow(unused)]
+pub trait HyprvisorReadSock {
+    async fn read_bytes(&self, buffer: &mut [u8]) -> HyprvisorResult<usize>;
+    async fn try_read_bytes(&self, buffer: &mut [u8], max_attempt: u8) -> HyprvisorResult<usize>;
 
-    async fn write_and_read_once(&self, content: &[u8]) -> HyprvisorResult<Vec<u8>>;
-    async fn write_and_read_multiple(
-        &self,
-        content: &[u8],
-        max_attempt: u8,
-    ) -> HyprvisorResult<Vec<u8>>;
+    async fn read_message(&self) -> HyprvisorResult<HyprvisorMessage>;
+    async fn try_read_message(&self, max_attempt: u8) -> HyprvisorResult<HyprvisorMessage>;
 }
 
-impl HyprvisorSocket for UnixStream {
-    async fn read_once(&self) -> HyprvisorResult<Vec<u8>> {
+pub trait HyprvisorWriteSock {
+    async fn write_bytes(&self, buffer: &[u8]) -> HyprvisorResult<usize>;
+    async fn try_write_bytes(&self, buffer: &[u8], max_attempt: u8) -> HyprvisorResult<usize>;
+
+    async fn write_message(&self, message: HyprvisorMessage) -> HyprvisorResult<usize>;
+    async fn try_write_message(
+        &self,
+        message: &HyprvisorMessage,
+        max_attempt: u8,
+    ) -> HyprvisorResult<usize>;
+}
+
+#[allow(unused)]
+pub trait HyprvisorRequestResponse {
+    async fn send_and_receive_bytes(
+        &self,
+        data: &[u8],
+        buffer: &mut [u8],
+    ) -> HyprvisorResult<usize>;
+    async fn try_send_and_receive_bytes(
+        &self,
+        data: &[u8],
+        buffer: &mut [u8],
+        max_attempt: u8,
+    ) -> HyprvisorResult<usize>;
+
+    async fn send_and_receive_message(
+        &self,
+        message: HyprvisorMessage,
+    ) -> HyprvisorResult<HyprvisorMessage>;
+    async fn try_send_and_receive_message(
+        &self,
+        message: &HyprvisorMessage,
+        max_attempt: u8,
+    ) -> HyprvisorResult<HyprvisorMessage>;
+}
+
+impl HyprvisorReadSock for UnixStream {
+    async fn read_bytes(&self, buffer: &mut [u8]) -> HyprvisorResult<usize> {
         if let Err(e) = self.readable().await {
             log::error!("Unreadable. Error: {e}");
-            return Err(HyprvisorError::StreamError);
-        }
-
-        let mut buffer = vec![0; *BUFFER_SIZE];
-        match self.try_read(&mut buffer) {
-            Ok(len) if len > 0 => Ok(buffer[..len].to_vec()),
-            Ok(_) => {
-                log::error!("Invalid message");
-                Err(HyprvisorError::StreamError)
-            }
-            Err(e) => {
-                log::info!("Can't read from stream. Error: {e}");
-                Err(HyprvisorError::StreamError)
-            }
-        }
-    }
-
-    async fn read_multiple(&self, max_attempt: u8) -> HyprvisorResult<Vec<u8>> {
-        for attempt in 0..max_attempt {
-            match self.read_once().await {
-                Ok(response) => {
-                    return Ok(response);
-                }
-                Err(_) => {
-                    log::warn!("Retry {}/{}", attempt + 1, max_attempt);
-                    continue;
-                }
-            }
-        }
-
-        log::error!("Out of attempt");
-        Err(HyprvisorError::StreamError)
-    }
-
-    async fn read_once_buf(&self, buffer: &mut [u8]) -> HyprvisorResult<usize> {
-        if let Err(e) = self.readable().await {
-            log::error!("Unreadable. Error: {e}");
-            return Err(HyprvisorError::StreamError);
+            return Err(HyprvisorError::IpcError);
         }
 
         match self.try_read(buffer) {
             Ok(len) if len > 0 => Ok(len),
             Ok(_) => {
-                log::error!("Invalid message");
-                Err(HyprvisorError::StreamError)
+                log::error!("Failed to read.");
+                Err(HyprvisorError::IpcError)
             }
             Err(e) => {
                 log::info!("Can't read from stream. Error: {e}");
-                Err(HyprvisorError::StreamError)
+                Err(HyprvisorError::IpcError)
             }
         }
     }
 
-    async fn read_multiple_buf(
-        &self,
-        buffer: &mut [u8],
-        max_attempt: u8,
-    ) -> HyprvisorResult<usize> {
+    async fn try_read_bytes(&self, buffer: &mut [u8], max_attempt: u8) -> HyprvisorResult<usize> {
         for attempt in 0..max_attempt {
-            match self.read_once_buf(buffer).await {
-                Ok(len) => {
-                    return Ok(len);
-                }
-                Err(_) => {
-                    log::warn!("Retry {}/{}", attempt + 1, max_attempt);
-                    continue;
-                }
+            match self.read_bytes(buffer).await {
+                Ok(len) => return Ok(len),
+                Err(_) => log::warn!("Retry {}/{}", attempt + 1, max_attempt),
             }
         }
-
         log::error!("Out of attempt");
-        Err(HyprvisorError::StreamError)
+        Err(HyprvisorError::IpcError)
     }
 
-    async fn write_once(&self, content: &[u8]) -> HyprvisorResult<()> {
+    async fn read_message(&self) -> HyprvisorResult<HyprvisorMessage> {
+        let mut buffer = vec![0; *BUFFER_SIZE];
+        match self.read_bytes(&mut buffer).await {
+            Ok(len) if len > 0 => buffer[..len].try_into(),
+            Ok(_) => {
+                log::error!("Invalid message");
+                Err(HyprvisorError::IpcError)
+            }
+            Err(e) => {
+                log::info!("Can't read from stream. Error: {e}");
+                Err(HyprvisorError::IpcError)
+            }
+        }
+    }
+
+    async fn try_read_message(&self, max_attempt: u8) -> HyprvisorResult<HyprvisorMessage> {
+        for attempt in 0..max_attempt {
+            match self.read_message().await {
+                Ok(message) => return Ok(message),
+                Err(_) => log::warn!("Retry {}/{}", attempt + 1, max_attempt),
+            }
+        }
+        log::error!("Out of attempt");
+        Err(HyprvisorError::IpcError)
+    }
+}
+
+impl HyprvisorWriteSock for UnixStream {
+    async fn write_bytes(&self, buffer: &[u8]) -> HyprvisorResult<usize> {
         if let Err(e) = self.writable().await {
             log::error!("Unwritable. Error: {e}");
-            return Err(HyprvisorError::StreamError);
+            return Err(HyprvisorError::IpcError);
         }
 
-        match self.try_write(content) {
-            Ok(len) if len == content.len() => {
-                log::debug!("Message: {}", String::from_utf8_lossy(content));
-                log::debug!("{len} bytes written");
-                Ok(())
+        match self.try_write(buffer) {
+            Ok(len) if len == buffer.len() => {
+                log::debug!("{len} bytes were written.");
+                Ok(len)
             }
             Ok(len) => {
-                log::warn!("Can't write all message. {len} bytes written");
-                Err(HyprvisorError::StreamError)
+                log::warn!("Can't write all message. {len} bytes were written.");
+                Err(HyprvisorError::IpcError)
             }
             Err(e) => {
                 log::info!("Can't write to stream. Error: {e}");
-                Err(HyprvisorError::StreamError)
+                Err(HyprvisorError::IpcError)
             }
         }
     }
 
-    async fn write_multiple(&self, content: &[u8], max_attempt: u8) -> HyprvisorResult<()> {
+    async fn try_write_bytes(&self, buffer: &[u8], max_attempt: u8) -> HyprvisorResult<usize> {
         for attempt in 0..max_attempt {
-            match self.write_once(content).await {
-                Ok(_) => {
-                    return Ok(());
-                }
-                Err(_) => {
-                    log::warn!("Retry {}/{}", attempt + 1, max_attempt);
-                    continue;
-                }
+            match self.write_bytes(buffer).await {
+                Ok(len) => return Ok(len),
+                Err(_) => log::warn!("Retry {}/{}", attempt + 1, max_attempt),
             }
         }
-
-        log::error!("Out of attempt");
-        Err(HyprvisorError::StreamError)
+        log::error!("Out of attempt.");
+        Err(HyprvisorError::IpcError)
     }
 
-    async fn write_and_read_once(&self, content: &[u8]) -> HyprvisorResult<Vec<u8>> {
-        self.write_once(content).await?;
-        self.read_once().await
+    async fn write_message(&self, message: HyprvisorMessage) -> HyprvisorResult<usize> {
+        let buffer: Vec<u8> = message.into();
+        match self.write_bytes(&buffer).await {
+            Ok(len) => Ok(len),
+            Err(_) => Err(HyprvisorError::IpcError),
+        }
     }
 
-    async fn write_and_read_multiple(
+    async fn try_write_message(
         &self,
-        content: &[u8],
+        message: &HyprvisorMessage,
         max_attempt: u8,
-    ) -> HyprvisorResult<Vec<u8>> {
+    ) -> HyprvisorResult<usize> {
         for attempt in 0..max_attempt {
-            match self.write_and_read_once(content).await {
-                Ok(response) => return Ok(response),
-                Err(_) => {
-                    log::warn!("Retry {}/{}", attempt + 1, max_attempt);
-                    continue;
-                }
+            match self.write_message(message.clone()).await {
+                Ok(len) => return Ok(len),
+                Err(_) => log::warn!("Retry {}/{}", attempt + 1, max_attempt),
             }
         }
+        log::error!("Out of attempt.");
+        Err(HyprvisorError::IpcError)
+    }
+}
 
-        log::error!("Maximum retry attempts reached");
-        Err(HyprvisorError::StreamError)
+impl HyprvisorRequestResponse for UnixStream {
+    async fn send_and_receive_bytes(
+        &self,
+        data: &[u8],
+        buffer: &mut [u8],
+    ) -> HyprvisorResult<usize> {
+        self.write_bytes(data).await?;
+        self.read_bytes(buffer).await
+    }
+
+    async fn try_send_and_receive_bytes(
+        &self,
+        data: &[u8],
+        buffer: &mut [u8],
+        max_attempt: u8,
+    ) -> HyprvisorResult<usize> {
+        self.try_write_bytes(data, max_attempt).await?;
+        self.read_bytes(buffer).await
+    }
+
+    async fn send_and_receive_message(
+        &self,
+        message: HyprvisorMessage,
+    ) -> HyprvisorResult<HyprvisorMessage> {
+        self.write_message(message).await?;
+        self.read_message().await
+    }
+
+    async fn try_send_and_receive_message(
+        &self,
+        message: &HyprvisorMessage,
+        max_attempt: u8,
+    ) -> HyprvisorResult<HyprvisorMessage> {
+        self.try_write_message(message, max_attempt).await?;
+        self.read_message().await
     }
 }
 
@@ -181,5 +222,5 @@ pub async fn connect_to_socket(
     }
 
     log::warn!("Failed to connect to socket: {socket_path}");
-    Err(HyprvisorError::StreamError)
+    Err(HyprvisorError::IpcError)
 }

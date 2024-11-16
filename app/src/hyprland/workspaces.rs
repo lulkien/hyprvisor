@@ -1,18 +1,18 @@
 use super::{types::HyprWorkspaceInfo, utils::send_hyprland_command};
 use crate::{
-    application::types::{Subscriber, SubscriptionID},
+    application::types::SubscriptionID,
     error::{HyprvisorError, HyprvisorResult},
-    ipc::HyprvisorSocket,
+    global::SUBSCRIBERS,
+    ipc::{message::HyprvisorMessage, HyprvisorWriteSock},
 };
 
 use serde_json::{from_slice, Value};
-use std::sync::Arc;
-use tokio::{net::UnixStream, sync::Mutex};
+use tokio::net::UnixStream;
 
 pub async fn response_to_subscription(stream: &UnixStream) -> HyprvisorResult<()> {
-    match serde_json::to_string(&get_hypr_workspace_info().await?) {
-        Ok(win_info) => stream.write_once(win_info.as_bytes()).await,
-        Err(e) => Err(HyprvisorError::SerdeError(e)),
+    match get_hypr_workspace_info().await {
+        Ok(ws_info) => stream.write_message(ws_info.try_into()?).await.map(|_| ()),
+        Err(e) => Err(e),
     }
 }
 
@@ -41,10 +41,10 @@ async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
 
 pub(super) async fn broadcast_info(
     current_ws_info: &mut Vec<HyprWorkspaceInfo>,
-    subscribers: Arc<Mutex<Subscriber>>,
 ) -> HyprvisorResult<()> {
-    let mut subscribers = subscribers.lock().await;
-    let ws_subscribers = match subscribers.get_mut(&SubscriptionID::Workspaces) {
+    let mut subscribers_ref = SUBSCRIBERS.lock().await;
+
+    let ws_subscribers = match subscribers_ref.get_mut(&SubscriptionID::Workspaces) {
         Some(subs) if !subs.is_empty() => subs,
         Some(_) | None => {
             return Err(HyprvisorError::NoSubscriber);
@@ -56,13 +56,13 @@ pub(super) async fn broadcast_info(
         return Err(HyprvisorError::FalseAlarm);
     }
 
-    *current_ws_info = new_ws_info;
+    *current_ws_info = new_ws_info.clone();
+    let message: HyprvisorMessage = HyprvisorMessage::try_from(new_ws_info)?;
 
     let mut disconnected_pid = Vec::new();
-    let ws_json = serde_json::to_string(current_ws_info)?;
 
     for (pid, stream) in ws_subscribers.iter_mut() {
-        if stream.write_multiple(ws_json.as_bytes(), 2).await.is_err() {
+        if stream.try_write_message(&message, 2).await.is_err() {
             log::debug!("Client {pid} is disconnected.");
             disconnected_pid.push(*pid);
         }

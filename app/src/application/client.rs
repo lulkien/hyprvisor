@@ -58,7 +58,9 @@ fn init_logger(filter: LevelFilter) -> HyprvisorResult<()> {
         logger
     };
 
-    logger.apply().map_err(|_| HyprvisorError::LoggerError)
+    logger
+        .apply()
+        .map_err(|e| HyprvisorError::LoggerError(fern::InitError::SetLoggerError(e)))
 }
 
 fn parse_opts(opts: SubscribeOpts) -> (SubscriptionID, u32) {

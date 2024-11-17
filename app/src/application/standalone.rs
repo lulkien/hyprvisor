@@ -1,15 +1,13 @@
-use std::time::SystemTime;
-
-use humantime::format_rfc3339_seconds;
-use log::LevelFilter;
-
+use super::utils::HYPRVISOR_SOCKET;
 use crate::{
     error::{HyprvisorError, HyprvisorResult},
     ipc::{connect_to_socket, HyprvisorRequestResponse},
     opts::CommandOpts,
 };
 
-use super::utils::HYPRVISOR_SOCKET;
+use humantime::format_rfc3339_seconds;
+use log::LevelFilter;
+use std::time::SystemTime;
 
 pub async fn send_command(command: CommandOpts, filter: LevelFilter) -> HyprvisorResult<()> {
     init_logger(filter)?;
@@ -46,5 +44,7 @@ fn init_logger(filter: LevelFilter) -> HyprvisorResult<()> {
         .level(filter)
         .chain(std::io::stdout());
 
-    logger.apply().map_err(|_| HyprvisorError::LoggerError)
+    logger
+        .apply()
+        .map_err(|e| HyprvisorError::LoggerError(fern::InitError::SetLoggerError(e)))
 }

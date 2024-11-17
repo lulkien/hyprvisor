@@ -1,9 +1,8 @@
-use std::fmt::Display;
+use crate::error::HyprvisorError;
 
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
-
-use crate::error::HyprvisorError;
+use std::fmt::Display;
 
 #[derive(Deserialize, Serialize, PartialEq)]
 pub struct Opts {

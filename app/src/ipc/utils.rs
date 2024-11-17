@@ -1,12 +1,11 @@
-use std::time::Duration;
-use tokio::{net::UnixStream, time::sleep};
-
+use super::message::HyprvisorMessage;
 use crate::{
     error::{HyprvisorError, HyprvisorResult},
     global::BUFFER_SIZE,
 };
 
-use super::message::HyprvisorMessage;
+use std::time::Duration;
+use tokio::{net::UnixStream, time::sleep};
 
 #[allow(unused)]
 pub trait HyprvisorReadSock {

@@ -10,7 +10,9 @@ A Rust-based server and client designed for monitoring [Hyprland](https://github
 
 ## How to install?
 
-1. **Install Rustup:**
+### Build from source code
+
+#### Install Rustup
 
 Follow the official instructions to install [Rustup](https://rustup.rs/), the Rust toolchain manager.
 
@@ -20,32 +22,36 @@ Or, if you are using Arch Linux, then here you go:
 sudo pacman -S rustup
 ```
 
-2. **Install Rust toolchain:**
-
-```bash
-rustup install nightly
-```
-
-or
+#### Install Rust toolchain
 
 ```bash
 rustup install stable
 ```
 
-3. **Clone the Repository:**
+#### Clone the Repository
 
 ```bash
 git clone https://github.com/lulkien/hyprvisor.git
 ```
 
-4. **Build and Install**
+#### Build and Install
 
 Change directory into the repo and run:
 
 ```bash
-cd app
-cargo install --path .
+cd hyprvisor
+cargo install --path app/
 ```
+### Use PKGBUILD
+
+```bash
+mkdir /tmp/hyprvisor
+cd /tmp/hyprvisor
+wget https://raw.githubusercontent.com/lulkien/hyprvisor/refs/heads/master/PKGBUILD
+makepkg -si
+```
+
+### Use precompiled release
 
 ## How to use?
 
@@ -82,47 +88,31 @@ cargo install --path .
 
 ### [My personal dotfiles](https://github.com/lulkien/dotfiles)
 
-- [$HOME/.config/hypr/scripts/start-hyprvisor.sh](https://github.com/lulkien/dotfiles/blob/master/config/hypr/scripts/start-hyprvisor.sh)
-
+- [$HOME/.configs/hypr/subconfigs/hypr_startup.conf](https://github.com/lulkien/dotfiles/blob/master/configs/hypr/subconfigs/hypr_startup.conf)
   ```bash
-  #!/usr/bin/env bash
-  
-  ~/.cargo/bin/hyprvisor kill
-  sleep 0.2
-  ~/.cargo/bin/hyprvisor daemon
-  ```
-
-- [$HOME/.config/hypr/hyprland.conf](https://github.com/lulkien/dotfiles/blob/master/config/hypr/hyprland.conf)
-  ```bash
-  # Your config
   ...
-  # Start hyprvisor server, this is a backend for some EWW widgets
-  exec-once = ~/.config/hypr/scripts/start-hyprvisor.sh
+  # Start hyprvisor and eww
+  exec-once = hyprvisor daemon
 
-  # Start EWW
   exec-once = eww daemon
-  exec-open = <start other eww daemon>
-  exec-once = <open your eww widgets>
+  exec-once = eww open bar
   ...
-  # Your config
   ```
-- [$HOME/.config/eww/modules/workspaces.yuck](https://github.com/lulkien/dotfiles/blob/master/config/eww/modules/workspaces.yuck)
+- [$HOME/.configs/eww/widgets/bar/components/workspaces.yuck](https://github.com/lulkien/dotfiles/blob/master/configs/eww/widgets/bar/components/workspaces.yuck)
   ```yuck
-  ;; Listen to Hyprland's workspace
-  (deflisten workspaces :initial "[]"
-    "sh -c '~/.cargo/bin/hyprvisor workspaces 10'")
+  ;; Listener
+  (deflisten WS_DATA :initial "[]"
+    `hyprvisor ws 10`)
 
-  (defwidget workspaces-widget []
-    (box :class "workspaces-widget"
-      (for ws in workspaces
-        (eventbox
+  (defwidget workspaces []
+    (box :class "workspaces bar-container"
+      (for ws in WS_DATA
+        (button
           :onclick "hyprctl dispatch workspace ${ws.id}"
-          (box :class "workspace-button-${ws.active ? "active" : "deactive"}"
-            :tooltip "Workspace ${ws.id}"
-            (label
-              :text "${ws.occupied ? ws.active ? "" : "󰻃"
-                                   : ws.active ? "" : "" }"
-            )
+          :tooltip "Workspace ${ws.id}"
+          (label
+            :class "${ws.active ? "active" : "deactive"}"
+            :text "${ws.occupied ? "" : ""}"
           )
         )
       )
@@ -137,16 +127,6 @@ Comprehensive configurations and further details can be found within the provide
 ## Disclaimer:
 
 This tool is currently in active development and should be considered a work in progress. The current version provides support for monitoring workspace and window information. Please note that additional features may be implemented in future releases, subject to available development time. Users are advised that there may be existing issues, and we appreciate your understanding as we work to enhance and refine the tool further. Feedback and contributions are welcome as we strive to improve its functionality and reliability.
-
-## Legacy Stable Version:
-
-For users seeking a stable and straightforward experience, a legacy version is available on the `legacy-stable` branch. This version, while simpler in design, provides reliable functionality. Feel free to check out this branch to explore the stable release and experience a more straightforward usage. Your feedback on this legacy version is valuable as we continue to evolve and enhance the tool. To try the legacy stable version, use the following command:
-
-```bash
-git checkout legacy-stable
-```
-
-Explore the simplicity and stability of this legacy release, and don't hesitate to provide feedback or report any issues you may encounter.
 
 ## License
 

@@ -10,7 +10,16 @@ A Rust-based server and client designed for monitoring [Hyprland](https://github
 
 ## How to install?
 
-### Build from source code
+### Method 1: Use PKGBUILD (recommended)
+
+```bash
+mkdir /tmp/hyprvisor
+cd /tmp/hyprvisor
+wget https://raw.githubusercontent.com/lulkien/hyprvisor/refs/heads/master/PKGBUILD
+makepkg -si
+```
+
+### Method 2: Build from source code
 
 #### Install Rustup
 
@@ -42,16 +51,8 @@ Change directory into the repo and run:
 cd hyprvisor
 cargo install --path app/
 ```
-### Use PKGBUILD
 
-```bash
-mkdir /tmp/hyprvisor
-cd /tmp/hyprvisor
-wget https://raw.githubusercontent.com/lulkien/hyprvisor/refs/heads/master/PKGBUILD
-makepkg -si
-```
-
-### Use precompiled release
+### Method 3: Use pre-compiled binary
 
 ## How to use?
 

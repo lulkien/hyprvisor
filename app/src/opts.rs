@@ -1,15 +1,17 @@
+use std::fmt::Display;
+
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 
 use crate::error::HyprvisorError;
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Deserialize, Serialize, PartialEq)]
 pub struct Opts {
     pub verbose: bool,
     pub action: Action,
 }
 
-#[derive(Debug, Parser, Serialize, Deserialize, PartialEq)]
+#[derive(Parser, Serialize, Deserialize, PartialEq)]
 #[clap(author = "LulKien")]
 #[clap(version, about)]
 struct RawOpts {
@@ -21,7 +23,7 @@ struct RawOpts {
     action: Action,
 }
 
-#[derive(Subcommand, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Subcommand, Serialize, Deserialize, PartialEq)]
 pub enum Action {
     #[command(name = "daemon", alias = "d")]
     Daemon,
@@ -33,7 +35,7 @@ pub enum Action {
     Listen(SubscribeOpts),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize, Subcommand)]
+#[derive(Clone, Copy, PartialEq, Deserialize, Serialize, Subcommand)]
 pub enum CommandOpts {
     #[command(name = "ping", alias = "p")]
     Ping,
@@ -42,7 +44,7 @@ pub enum CommandOpts {
     Kill,
 }
 
-#[derive(Debug, PartialEq, Deserialize, Serialize, Subcommand)]
+#[derive(Clone, Copy, PartialEq, Deserialize, Serialize, Subcommand)]
 pub enum SubscribeOpts {
     #[command(name = "workspaces", alias = "ws")]
     Workspaces { fix_workspace: Option<u32> },
@@ -83,6 +85,15 @@ impl TryFrom<u8> for CommandOpts {
             0 => Ok(CommandOpts::Ping),
             1 => Ok(CommandOpts::Kill),
             _ => Err(HyprvisorError::ParseError),
+        }
+    }
+}
+
+impl Display for CommandOpts {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CommandOpts::Ping => write!(f, "Ping"),
+            CommandOpts::Kill => write!(f, "Kill"),
         }
     }
 }

@@ -1,49 +1,9 @@
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fmt::{Display, Formatter, Result};
-use tokio::net::UnixStream;
-
+use super::SubscriptionID;
 use crate::error::HyprvisorError;
 
-pub type Subscriber = HashMap<SubscriptionID, HashMap<u32, UnixStream>>;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum SubscriptionID {
-    Workspaces = 0,
-    Window = 1,
-    Wireless = 2,
-}
-
-impl From<SubscriptionID> for u8 {
-    fn from(value: SubscriptionID) -> Self {
-        value as u8
-    }
-}
-
-impl TryFrom<u8> for SubscriptionID {
-    type Error = HyprvisorError;
-    fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
-        match value {
-            0 => Ok(SubscriptionID::Workspaces),
-            1 => Ok(SubscriptionID::Window),
-            2 => Ok(SubscriptionID::Wireless),
-            _ => Err(HyprvisorError::ParseError),
-        }
-    }
-}
-
-impl Display for SubscriptionID {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        match self {
-            SubscriptionID::Workspaces => write!(f, "Workspaces"),
-            SubscriptionID::Window => write!(f, "Window"),
-            SubscriptionID::Wireless => write!(f, "Wireless"),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 pub struct ClientInfo {
     pub subscription_id: SubscriptionID,
     pub process_id: u32,

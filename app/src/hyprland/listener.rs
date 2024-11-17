@@ -11,6 +11,7 @@ pub async fn start_hyprland_listener() -> HyprvisorResult<()> {
     let mut stream = connect_to_socket(&event_socket, 1, 100).await?;
 
     let mut buffer = vec![0; *BUFFER_SIZE];
+
     loop {
         match fetch_hyprland_event(&mut stream, &mut buffer).await {
             events if events.contains(&HyprEvent::WindowChanged) => {

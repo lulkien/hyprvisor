@@ -142,6 +142,6 @@ impl HyprvisorMessage {
     }
 
     pub fn len(&self) -> usize {
-        return MESSAGE_TYPE_LEN + MESSAGE_HEADER_LEN + self.header;
+        MESSAGE_TYPE_LEN + MESSAGE_HEADER_LEN + self.header
     }
 }

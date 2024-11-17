@@ -119,7 +119,7 @@ async fn register_client(stream: UnixStream, message: HyprvisorMessage) -> Hyprv
 
     let mut subscribers_ref = subscribers.lock().await;
     subscribers_ref
-        .entry(client_info.subscription_id.clone())
+        .entry(client_info.subscription_id)
         .or_insert(HashMap::new());
 
     log::info!(

@@ -25,12 +25,12 @@ async fn run(opts: &Opts) -> HyprvisorResult<()> {
         log::LevelFilter::Info
     };
 
-    match &opts.action {
+    match opts.action {
         Action::Daemon => {
             application::server::start_server(level_filter).await?;
         }
-        Action::Command(_command) => {
-            todo!()
+        Action::Command(command) => {
+            application::standalone::send_command(command, level_filter).await?;
         }
         Action::Listen(subscription) => {
             application::client::start_client(subscription, level_filter).await?;

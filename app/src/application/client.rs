@@ -14,12 +14,12 @@ use log::LevelFilter;
 use std::{process, time::SystemTime};
 use tokio::net::UnixStream;
 
-pub async fn start_client(opts: &SubscribeOpts, filter: LevelFilter) -> HyprvisorResult<()> {
+pub async fn start_client(opts: SubscribeOpts, filter: LevelFilter) -> HyprvisorResult<()> {
     init_logger(filter)?;
     ping_daemon().await?;
 
     let (subscription_id, extra_data) = parse_opts(opts);
-    let stream = subscribe(&subscription_id).await?;
+    let stream = subscribe(subscription_id).await?;
 
     loop {
         let response_message = match stream.try_read_message(3).await {
@@ -32,7 +32,7 @@ pub async fn start_client(opts: &SubscribeOpts, filter: LevelFilter) -> Hyprviso
 
         println!(
             "{}",
-            parse_response(response_message, &subscription_id, &extra_data)?
+            parse_response(response_message, subscription_id, &extra_data)?
         );
     }
 }
@@ -61,7 +61,7 @@ fn init_logger(filter: LevelFilter) -> HyprvisorResult<()> {
     logger.apply().map_err(|_| HyprvisorError::LoggerError)
 }
 
-fn parse_opts(opts: &SubscribeOpts) -> (SubscriptionID, u32) {
+fn parse_opts(opts: SubscribeOpts) -> (SubscriptionID, u32) {
     match opts {
         SubscribeOpts::Workspaces { fix_workspace } => (
             SubscriptionID::Workspaces,
@@ -84,11 +84,11 @@ fn parse_opts(opts: &SubscribeOpts) -> (SubscriptionID, u32) {
     }
 }
 
-async fn subscribe(subcription_id: &SubscriptionID) -> HyprvisorResult<UnixStream> {
+async fn subscribe(subcription_id: SubscriptionID) -> HyprvisorResult<UnixStream> {
     let stream = connect_to_socket(&HYPRVISOR_SOCKET, 1, 100).await?;
 
     let message = HyprvisorMessage::from(ClientInfo {
-        subscription_id: subcription_id.clone(),
+        subscription_id: subcription_id,
         process_id: process::id(),
     });
 
@@ -99,19 +99,19 @@ async fn subscribe(subcription_id: &SubscriptionID) -> HyprvisorResult<UnixStrea
 
 fn parse_response(
     message: HyprvisorMessage,
-    subcription_id: &SubscriptionID,
+    subcription_id: SubscriptionID,
     extra_data: &u32,
 ) -> HyprvisorResult<String> {
     match subcription_id {
-        &SubscriptionID::Workspaces => {
+        SubscriptionID::Workspaces => {
             let ws_info: Vec<HyprWorkspaceInfo> = message.try_into()?;
             ws_info.to_formatted_json(extra_data)
         }
-        &SubscriptionID::Window => {
+        SubscriptionID::Window => {
             let window_info: HyprWindowInfo = message.try_into()?;
             window_info.to_formatted_json(extra_data)
         }
-        &SubscriptionID::Wireless => {
+        SubscriptionID::Wireless => {
             todo!()
         }
     }

@@ -1,43 +1,44 @@
 use std::{fmt::Display, io, result::Result};
 
-// This result type will be used everywhere
 pub type HyprvisorResult<T> = Result<T, HyprvisorError>;
 
-#[allow(unused)]
 #[derive(Debug)]
 pub enum HyprvisorError {
     DaemonRunning,
     NoDaemon,
-    SerdeError(serde_json::Error),
+    JsonError(serde_json::Error),
+    BincodeError(bincode::Error),
     IoError(io::Error),
-    StreamError,
+    IpcError,
     ParseError,
     NoSubscriber,
     FalseAlarm,
-    LoggerError,
+    LoggerError(fern::InitError),
+    InvalidMessage,
+    InvalidResponse,
 }
 
 impl From<io::Error> for HyprvisorError {
-    fn from(value: io::Error) -> Self {
-        HyprvisorError::IoError(value)
+    fn from(err: io::Error) -> Self {
+        HyprvisorError::IoError(err)
     }
 }
 
 impl From<serde_json::Error> for HyprvisorError {
-    fn from(value: serde_json::Error) -> Self {
-        HyprvisorError::SerdeError(value)
+    fn from(err: serde_json::Error) -> Self {
+        HyprvisorError::JsonError(err)
     }
 }
 
-impl From<std::num::ParseIntError> for HyprvisorError {
-    fn from(_: std::num::ParseIntError) -> Self {
-        HyprvisorError::ParseError
+impl From<bincode::Error> for HyprvisorError {
+    fn from(err: bincode::Error) -> Self {
+        HyprvisorError::BincodeError(err)
     }
 }
 
 impl From<fern::InitError> for HyprvisorError {
-    fn from(_: fern::InitError) -> Self {
-        HyprvisorError::LoggerError
+    fn from(err: fern::InitError) -> Self {
+        HyprvisorError::LoggerError(err)
     }
 }
 
@@ -46,13 +47,16 @@ impl Display for HyprvisorError {
         match self {
             HyprvisorError::DaemonRunning => write!(f, "Daemon is already running"),
             HyprvisorError::NoDaemon => write!(f, "No daemon found"),
-            HyprvisorError::SerdeError(err) => write!(f, "Serde error: {}", err),
-            HyprvisorError::IoError(err) => write!(f, "IO error: {}", err),
-            HyprvisorError::StreamError => write!(f, "Stream error"),
+            HyprvisorError::JsonError(err) => write!(f, "Json error: {err}"),
+            HyprvisorError::BincodeError(err) => write!(f, "Bincode error: {err}"),
+            HyprvisorError::IpcError => write!(f, "Inter-processes communication error"),
+            HyprvisorError::IoError(err) => write!(f, "IO error: {err}"),
             HyprvisorError::ParseError => write!(f, "Parse error"),
             HyprvisorError::NoSubscriber => write!(f, "No subscriber"),
             HyprvisorError::FalseAlarm => write!(f, "False alarm"),
-            HyprvisorError::LoggerError => write!(f, "Cannot init logger"),
+            HyprvisorError::LoggerError(err) => write!(f, "Logger error: {err}"),
+            HyprvisorError::InvalidMessage => write!(f, "Invalid message"),
+            HyprvisorError::InvalidResponse => write!(f, "Invalid response"),
         }
     }
 }

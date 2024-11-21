@@ -7,6 +7,7 @@ use crate::{
     hyprland::types::{FormattedInfo, HyprWindowInfo, HyprWorkspaceInfo},
     ipc::{connect_to_socket, message::HyprvisorMessage, HyprvisorReadSock, HyprvisorWriteSock},
     opts::SubscribeOpts,
+    wifi::types::WifiInfo,
 };
 
 use humantime::format_rfc3339_seconds;
@@ -79,8 +80,8 @@ fn parse_opts(opts: SubscribeOpts) -> (SubscriptionID, u32) {
                 tl.min(u8::MAX.into())
             }),
         ),
-        SubscribeOpts::Wireless { ssid_length } => (
-            SubscriptionID::Wireless,
+        SubscribeOpts::Wifi { ssid_length } => (
+            SubscriptionID::Wifi,
             ssid_length.map_or(25, |sl| sl.min(u8::MAX.into())),
         ),
     }
@@ -113,8 +114,9 @@ fn parse_response(
             let window_info: HyprWindowInfo = message.try_into()?;
             window_info.to_formatted_json(extra_data)
         }
-        SubscriptionID::Wireless => {
-            todo!()
+        SubscriptionID::Wifi => {
+            let wifi_info: WifiInfo = message.try_into()?;
+            wifi_info.to_formatted_json(extra_data)
         }
     }
 }

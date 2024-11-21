@@ -4,6 +4,7 @@ mod global;
 mod hyprland;
 mod ipc;
 mod opts;
+mod wifi;
 
 use crate::{
     error::HyprvisorResult,

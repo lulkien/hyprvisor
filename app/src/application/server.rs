@@ -153,10 +153,12 @@ async fn register_client(stream: UnixStream, message: HyprvisorMessage) -> Hyprv
         }
     };
 
+    let (_, writer) = stream.into_split();
+
     subscribers_ref
         .get_mut(&client_info.subscription_id)
         .unwrap()
-        .insert(client_info.process_id, stream);
+        .insert(client_info.process_id, writer);
 
     log::info!("Client connected.");
 

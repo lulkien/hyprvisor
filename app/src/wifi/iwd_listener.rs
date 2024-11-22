@@ -1,4 +1,4 @@
-use super::types::WifiInfo;
+use super::{types::WifiInfo, CURRENT_WIFI, POLLING_INTERVAL};
 use crate::{
     application::types::SubscriptionID,
     error::{HyprvisorError, HyprvisorResult},
@@ -10,11 +10,7 @@ use iwdrs::{modes::Mode, session::Session, station::Station};
 use std::{thread::sleep, time::Duration};
 use tokio::net::UnixStream;
 
-const POLLING_INTERVAL: u64 = 2000;
-
 pub async fn start_wifi_listener() -> HyprvisorResult<()> {
-    let mut current_wifi = WifiInfo::default();
-
     let session = match Session::new().await {
         Ok(session) => session,
         Err(_) => {
@@ -49,15 +45,18 @@ pub async fn start_wifi_listener() -> HyprvisorResult<()> {
         }
     };
 
-    polling_iwd(station, &mut current_wifi).await
+    polling_iwd(station).await
 }
 
 pub async fn response_to_subscription(stream: &UnixStream) -> HyprvisorResult<()> {
-    let init_message: HyprvisorMessage = HyprvisorMessage::try_from(WifiInfo::default())?;
+    let current_wifi = CURRENT_WIFI.clone();
+    let current_wifi = current_wifi.lock().await;
+
+    let init_message: HyprvisorMessage = HyprvisorMessage::try_from((*current_wifi).clone())?;
     stream.write_message(init_message).await.map(|_| ())
 }
 
-async fn polling_iwd(station: Station, _current_wifi: &mut WifiInfo) -> HyprvisorResult<()> {
+async fn polling_iwd(station: Station) -> HyprvisorResult<()> {
     loop {
         match station.state().await {
             Ok(state) => {
@@ -78,7 +77,13 @@ async fn polling_iwd(station: Station, _current_wifi: &mut WifiInfo) -> Hyprviso
                     ssid,
                 };
 
-                let _ = broadcast_info(&wifi_info).await;
+                let current_wifi = CURRENT_WIFI.clone();
+                let mut current_wifi = current_wifi.lock().await;
+
+                if *current_wifi != wifi_info {
+                    *current_wifi = wifi_info;
+                    let _ = broadcast_info(&current_wifi).await;
+                }
             }
             Err(_) => {
                 log::error!("Cannot get iwd state.");
@@ -90,7 +95,7 @@ async fn polling_iwd(station: Station, _current_wifi: &mut WifiInfo) -> Hyprviso
     }
 }
 
-pub(super) async fn broadcast_info(wifi_info: &WifiInfo) -> HyprvisorResult<()> {
+async fn broadcast_info(wifi_info: &WifiInfo) -> HyprvisorResult<()> {
     let mut subscribers_ref = SUBSCRIBERS.lock().await;
 
     let subscribers = match subscribers_ref.get_mut(&SubscriptionID::Wifi) {

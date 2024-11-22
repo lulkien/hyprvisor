@@ -6,16 +6,44 @@ use crate::{
     ipc::message::HyprvisorMessage,
 };
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum WifiState {
+    Disabled,
+    Disconnected,
+    Connecting,
+    Connected,
+    Unknown,
+}
+
+impl Default for WifiState {
+    fn default() -> Self {
+        Self::Unknown
+    }
+}
+
+impl From<&str> for WifiState {
+    fn from(value: &str) -> Self {
+        match value {
+            "disabled" => Self::Disabled,
+            "disconnected" => Self::Disconnected,
+            "connecting" => Self::Connecting,
+            "connected" => Self::Connected,
+            _ => Self::Unknown,
+        }
+    }
+}
+
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct WifiInfo {
-    pub state: String,
+    pub state: WifiState,
     pub ssid: String,
 }
 
 impl Default for WifiInfo {
     fn default() -> Self {
         Self {
-            state: "loading".to_string(),
+            state: WifiState::default(),
             ssid: "Identifying...".to_string(),
         }
     }

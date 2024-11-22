@@ -11,6 +11,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 const POLLING_INTERVAL: u64 = 500;
+const REBOOT_IWD_DELAY: u64 = 2500;
+const MAX_ATTEMPT_RETRY: usize = 10;
 
 static CURRENT_WIFI: Lazy<Arc<Mutex<WifiInfo>>> =
     Lazy::new(|| Arc::new(Mutex::new(WifiInfo::default())));

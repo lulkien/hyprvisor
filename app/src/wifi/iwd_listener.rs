@@ -1,9 +1,13 @@
-use super::{types::WifiInfo, CURRENT_WIFI, POLLING_INTERVAL};
+use super::{
+    types::{WifiInfo, WifiState},
+    CURRENT_WIFI, MAX_ATTEMPT_RETRY, POLLING_INTERVAL,
+};
 use crate::{
     application::types::SubscriptionID,
     error::{HyprvisorError, HyprvisorResult},
     global::SUBSCRIBERS,
     ipc::{message::HyprvisorMessage, HyprvisorWriteSock},
+    wifi::REBOOT_IWD_DELAY,
 };
 
 use iwdrs::{modes::Mode, session::Session, station::Station};
@@ -11,6 +15,31 @@ use std::{thread::sleep, time::Duration};
 use tokio::net::UnixStream;
 
 pub async fn start_wifi_listener() -> HyprvisorResult<()> {
+    for attempt in 0..MAX_ATTEMPT_RETRY {
+        log::info!(
+            "Attemp to start wifi listener: {}/{}",
+            attempt + 1,
+            MAX_ATTEMPT_RETRY
+        );
+        let _ = try_init_iwd_session().await;
+
+        log::warn!("Iwd is down. Rebooting...");
+        sleep(Duration::from_millis(REBOOT_IWD_DELAY));
+    }
+
+    log::error!("Cannot start wifi listener. Out of attempt.");
+    Err(HyprvisorError::WifiError)
+}
+
+pub async fn response_to_subscription(stream: &UnixStream) -> HyprvisorResult<()> {
+    let current_wifi = CURRENT_WIFI.clone();
+    let current_wifi = current_wifi.lock().await;
+
+    let init_message: HyprvisorMessage = HyprvisorMessage::try_from((*current_wifi).clone())?;
+    stream.write_message(init_message).await.map(|_| ())
+}
+
+async fn try_init_iwd_session() -> HyprvisorResult<()> {
     let session = match Session::new().await {
         Ok(session) => session,
         Err(_) => {
@@ -27,15 +56,19 @@ pub async fn start_wifi_listener() -> HyprvisorResult<()> {
         }
     };
 
-    if device
-        .get_mode()
-        .await
-        .map_err(|_| HyprvisorError::WifiError)?
-        != Mode::Station
-    {
-        log::error!("Mode not supported.");
-        return Err(HyprvisorError::WifiError);
-    }
+    match device.get_mode().await {
+        Ok(mode) if mode == Mode::Station => {
+            log::debug!("Current mode: {mode}");
+        }
+        Ok(mode) => {
+            log::warn!("Device mode is not Station. Current mode: {mode}");
+            return Err(HyprvisorError::WifiError);
+        }
+        Err(_) => {
+            log::error!("Mode not supported.");
+            return Err(HyprvisorError::WifiError);
+        }
+    };
 
     let station = match session.station() {
         Some(station) => station,
@@ -48,17 +81,9 @@ pub async fn start_wifi_listener() -> HyprvisorResult<()> {
     polling_iwd(station).await
 }
 
-pub async fn response_to_subscription(stream: &UnixStream) -> HyprvisorResult<()> {
-    let current_wifi = CURRENT_WIFI.clone();
-    let current_wifi = current_wifi.lock().await;
-
-    let init_message: HyprvisorMessage = HyprvisorMessage::try_from((*current_wifi).clone())?;
-    stream.write_message(init_message).await.map(|_| ())
-}
-
 async fn polling_iwd(station: Station) -> HyprvisorResult<()> {
     loop {
-        match station.state().await {
+        let wifi_info = match station.state().await {
             Ok(state) => {
                 let ssid = if state == "connected" {
                     match station.connected_network().await {
@@ -72,23 +97,24 @@ async fn polling_iwd(station: Station) -> HyprvisorResult<()> {
                     "unknown".to_string()
                 };
 
-                let wifi_info = WifiInfo {
-                    state: state.clone(),
+                WifiInfo {
+                    state: WifiState::from(state.as_str()),
                     ssid,
-                };
-
-                let current_wifi = CURRENT_WIFI.clone();
-                let mut current_wifi = current_wifi.lock().await;
-
-                if *current_wifi != wifi_info {
-                    *current_wifi = wifi_info;
-                    let _ = broadcast_info(&current_wifi).await;
                 }
             }
             Err(_) => {
                 log::error!("Cannot get iwd state.");
-                return Err(HyprvisorError::WifiError);
+                WifiInfo {
+                    state: WifiState::Disabled,
+                    ssid: "unknown".to_string(),
+                }
             }
+        };
+
+        let _ = broadcast_info(&wifi_info).await;
+
+        if wifi_info.state == WifiState::Disabled {
+            return Err(HyprvisorError::WifiError);
         }
 
         sleep(Duration::from_millis(POLLING_INTERVAL));
@@ -96,6 +122,14 @@ async fn polling_iwd(station: Station) -> HyprvisorResult<()> {
 }
 
 async fn broadcast_info(wifi_info: &WifiInfo) -> HyprvisorResult<()> {
+    let current_wifi = CURRENT_WIFI.clone();
+    let mut current_wifi = current_wifi.lock().await;
+
+    if *current_wifi == *wifi_info {
+        return Ok(());
+    }
+
+    *current_wifi = wifi_info.clone();
     let mut subscribers_ref = SUBSCRIBERS.lock().await;
 
     let subscribers = match subscribers_ref.get_mut(&SubscriptionID::Wifi) {

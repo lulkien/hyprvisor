@@ -8,7 +8,7 @@ use std::fmt::{Display, Formatter, Result};
 pub enum SubscriptionID {
     Workspaces = 0,
     Window = 1,
-    Wireless = 2,
+    Wifi = 2,
 }
 
 impl From<SubscriptionID> for u8 {
@@ -23,7 +23,7 @@ impl TryFrom<u8> for SubscriptionID {
         match value {
             0 => Ok(SubscriptionID::Workspaces),
             1 => Ok(SubscriptionID::Window),
-            2 => Ok(SubscriptionID::Wireless),
+            2 => Ok(SubscriptionID::Wifi),
             _ => Err(HyprvisorError::ParseError),
         }
     }
@@ -34,7 +34,7 @@ impl Display for SubscriptionID {
         match self {
             SubscriptionID::Workspaces => write!(f, "Workspaces"),
             SubscriptionID::Window => write!(f, "Window"),
-            SubscriptionID::Wireless => write!(f, "Wireless"),
+            SubscriptionID::Wifi => write!(f, "Wifi"),
         }
     }
 }

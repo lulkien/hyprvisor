@@ -3,6 +3,7 @@ use crate::{
     error::{HyprvisorError, HyprvisorResult},
     hyprland::types::{HyprWindowInfo, HyprWorkspaceInfo},
     opts::CommandOpts,
+    wifi::types::WifiInfo,
 };
 
 const MESSAGE_TYPE_LEN: usize = size_of::<MessageType>();
@@ -39,6 +40,16 @@ pub struct HyprvisorMessage {
     pub message_type: MessageType,
     pub header: usize, // size of payload
     pub payload: Vec<u8>,
+}
+
+impl HyprvisorMessage {
+    pub fn is_valid(&self) -> bool {
+        self.payload.len() == self.header
+    }
+
+    pub fn len(&self) -> usize {
+        MESSAGE_TYPE_LEN + MESSAGE_HEADER_LEN + self.header
+    }
 }
 
 impl From<CommandOpts> for HyprvisorMessage {
@@ -136,12 +147,14 @@ impl TryFrom<Vec<HyprWorkspaceInfo>> for HyprvisorMessage {
     }
 }
 
-impl HyprvisorMessage {
-    pub fn is_valid(&self) -> bool {
-        self.payload.len() == self.header
-    }
-
-    pub fn len(&self) -> usize {
-        MESSAGE_TYPE_LEN + MESSAGE_HEADER_LEN + self.header
+impl TryFrom<WifiInfo> for HyprvisorMessage {
+    type Error = HyprvisorError;
+    fn try_from(wifi_info: WifiInfo) -> Result<Self, Self::Error> {
+        let payload: Vec<u8> = bincode::serialize(&wifi_info)?;
+        Ok(HyprvisorMessage {
+            message_type: MessageType::Response,
+            header: payload.len(),
+            payload,
+        })
     }
 }

@@ -1,4 +1,4 @@
-use super::types::HyprWindowInfo;
+use super::{types::HyprWindowInfo, CURRENT_WINDOW};
 use crate::{
     application::types::SubscriptionID,
     error::{HyprvisorError, HyprvisorResult},
@@ -26,7 +26,7 @@ async fn get_hypr_active_window() -> HyprvisorResult<HyprWindowInfo> {
     })
 }
 
-pub(super) async fn broadcast_info(current_win_info: &mut HyprWindowInfo) -> HyprvisorResult<()> {
+pub(super) async fn broadcast_info() -> HyprvisorResult<()> {
     let mut subscribers_ref = SUBSCRIBERS.lock().await;
 
     let subscribers = match subscribers_ref.get_mut(&SubscriptionID::Window) {
@@ -36,13 +36,18 @@ pub(super) async fn broadcast_info(current_win_info: &mut HyprWindowInfo) -> Hyp
         }
     };
 
+    let current_window = CURRENT_WINDOW.clone();
+    let mut current_window = current_window.lock().await;
+
     let window = get_hypr_active_window().await?;
-    if *current_win_info == window {
+
+    if *current_window == window {
         return Err(HyprvisorError::FalseAlarm);
     }
 
-    let message: HyprvisorMessage = HyprvisorMessage::try_from(window.clone())?;
-    *current_win_info = window;
+    *current_window = window;
+
+    let message: HyprvisorMessage = HyprvisorMessage::try_from(current_window.clone())?;
 
     let mut disconnected_pid = Vec::new();
 

@@ -1,8 +1,8 @@
 pub mod message;
-pub mod utils;
+pub mod trait_impl;
+pub mod traits;
 
-pub use utils::connect_to_socket;
-
-pub use utils::HyprvisorReadSock;
-pub use utils::HyprvisorRequestResponse;
-pub use utils::HyprvisorWriteSock;
+pub use traits::connect_to_socket;
+pub use traits::HyprvisorReadSock;
+pub use traits::HyprvisorRequestResponse;
+pub use traits::HyprvisorWriteSock;

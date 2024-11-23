@@ -40,8 +40,15 @@ jobs:
           mv "target/${{ matrix.target }}/release/$binary_name" "$dirname"
           tar -czf "$dirname.tar.gz" "$dirname"
           echo "RELEASE_PKG=$dirname.tar.gz" >> $GITHUB_ENV
+      - name: Calculate SHA256 checksum
+        shell: bash
+        run: |
+          sha256sum "$RELEASE_PKG" > "${RELEASE_PKG}.sha256"
+          cat "${RELEASE_PKG}.sha256"
+          echo "SHA256SUM=$(cat ${RELEASE_PKG}.sha256)" >> $GITHUB_ENV
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             ${{ env.RELEASE_PKG }}
+            ${{ env.RELEASE_PKG }}.sha256

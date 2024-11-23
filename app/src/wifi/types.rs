@@ -38,6 +38,20 @@ impl From<&str> for WifiState {
 pub struct WifiInfo {
     pub state: WifiState,
     pub ssid: String,
+    pub icon: String,
+}
+
+impl WifiInfo {
+    pub fn get_wifi_icon(state: WifiState) -> String {
+        match state {
+            WifiState::Unknown => "󱚵",
+            WifiState::Disabled => "󰖪",
+            WifiState::Connected => "󰖩",
+            WifiState::Connecting => "󱛇",
+            WifiState::Disconnected => "󱛅",
+        }
+        .to_string()
+    }
 }
 
 impl Default for WifiInfo {
@@ -45,6 +59,7 @@ impl Default for WifiInfo {
         Self {
             state: WifiState::default(),
             ssid: "Identifying...".to_string(),
+            icon: String::new(),
         }
     }
 }

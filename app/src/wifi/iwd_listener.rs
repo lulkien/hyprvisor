@@ -97,9 +97,12 @@ async fn polling_iwd(station: Station) -> HyprvisorResult<()> {
                     "unknown".to_string()
                 };
 
+                let wifi_state = WifiState::from(state.as_str());
+
                 WifiInfo {
-                    state: WifiState::from(state.as_str()),
+                    state: wifi_state.clone(),
                     ssid,
+                    icon: WifiInfo::get_wifi_icon(wifi_state),
                 }
             }
             Err(_) => {
@@ -107,6 +110,7 @@ async fn polling_iwd(station: Station) -> HyprvisorResult<()> {
                 WifiInfo {
                     state: WifiState::Disabled,
                     ssid: "unknown".to_string(),
+                    icon: WifiInfo::get_wifi_icon(WifiState::Disabled),
                 }
             }
         };

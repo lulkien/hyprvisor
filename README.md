@@ -2,7 +2,7 @@
 
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-cyan.svg)](http://unlicense.org/)
 [![Hyprland](https://img.shields.io/badge/Made%20for-Hyprland-blue.svg)](https://github.com/hyprwm/Hyprland)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/lulkien/hyprvisor/.github%2Fworkflows%2Fstable_build.yml)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/lulkien/hyprvisor/.github%2Fworkflows%2Fdeploy.yml)
 
 ## Overview
 

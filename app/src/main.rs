@@ -1,4 +1,5 @@
 mod application;
+mod bluetooth;
 mod error;
 mod global;
 mod hyprland;

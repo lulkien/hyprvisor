@@ -43,7 +43,7 @@ async fn try_init_iwd_session() -> HyprvisorResult<()> {
     let session = match Session::new().await {
         Ok(session) => session,
         Err(_) => {
-            log::error!("Cannot get iwd session.");
+            log::error!("Failed to create a new iwd session.");
             return Err(HyprvisorError::WifiError);
         }
     };
@@ -51,21 +51,21 @@ async fn try_init_iwd_session() -> HyprvisorResult<()> {
     let device = match session.device() {
         Some(device) => device,
         None => {
-            log::error!("Cannot get iwd device.");
+            log::error!("No iwd device found.");
             return Err(HyprvisorError::WifiError);
         }
     };
 
     match device.get_mode().await {
-        Ok(mode) if mode == Mode::Station => {
-            log::debug!("Current mode: {mode}");
+        Ok(Mode::Station) => {
+            log::debug!("Device is in Station mode.");
         }
         Ok(mode) => {
-            log::warn!("Device mode is not Station. Current mode: {mode}");
+            log::warn!("Device is not in Station mode. Current mode: {mode}");
             return Err(HyprvisorError::WifiError);
         }
         Err(_) => {
-            log::error!("Mode not supported.");
+            log::error!("Failed to retrieve the device mode.");
             return Err(HyprvisorError::WifiError);
         }
     };
@@ -73,7 +73,7 @@ async fn try_init_iwd_session() -> HyprvisorResult<()> {
     let station = match session.station() {
         Some(station) => station,
         None => {
-            log::error!("Failed to get iwd station");
+            log::error!("Failed to retrieve the iwd station.");
             return Err(HyprvisorError::WifiError);
         }
     };

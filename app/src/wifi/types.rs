@@ -34,7 +34,7 @@ impl From<&str> for WifiState {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 pub struct WifiInfo {
     pub state: WifiState,
     pub ssid: String,
@@ -51,16 +51,6 @@ impl WifiInfo {
             WifiState::Disconnected => "󱛅",
         }
         .to_string()
-    }
-}
-
-impl Default for WifiInfo {
-    fn default() -> Self {
-        Self {
-            state: WifiState::default(),
-            ssid: "Identifying...".to_string(),
-            icon: String::new(),
-        }
     }
 }
 

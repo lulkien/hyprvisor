@@ -85,16 +85,13 @@ async fn polling_iwd(station: Station) -> HyprvisorResult<()> {
     loop {
         let wifi_info = match station.state().await {
             Ok(state) => {
-                let ssid = if state == "connected" {
-                    match station.connected_network().await {
-                        Ok(Some(network)) => network
-                            .name()
-                            .await
-                            .unwrap_or_else(|_| "unknown".to_string()),
-                        _ => "unknown".to_string(),
+                let mut ssid = String::new();
+
+                if state == "connected" {
+                    ssid = match station.connected_network().await {
+                        Ok(Some(network)) => network.name().await.unwrap_or_else(|_| String::new()),
+                        _ => String::new(),
                     }
-                } else {
-                    "unknown".to_string()
                 };
 
                 let wifi_state = WifiState::from(state.as_str());
@@ -109,7 +106,7 @@ async fn polling_iwd(station: Station) -> HyprvisorResult<()> {
                 log::error!("Cannot get iwd state.");
                 WifiInfo {
                     state: WifiState::Disabled,
-                    ssid: "unknown".to_string(),
+                    ssid: String::new(),
                     icon: WifiInfo::get_wifi_icon(WifiState::Disabled),
                 }
             }

@@ -1,10 +1,4 @@
-use crate::{
-    application::types::ClientInfo,
-    error::{HyprvisorError, HyprvisorResult},
-    hyprland::types::{HyprWindowInfo, HyprWorkspaceInfo},
-    opts::CommandOpts,
-    wifi::types::WifiInfo,
-};
+use crate::{application::types::ClientInfo, error::HyprvisorError, opts::CommandOpts};
 
 const MESSAGE_TYPE_LEN: usize = size_of::<MessageType>();
 const MESSAGE_HEADER_LEN: usize = size_of::<usize>();
@@ -118,42 +112,6 @@ impl TryFrom<&[u8]> for HyprvisorMessage {
         Ok(HyprvisorMessage {
             message_type,
             header,
-            payload,
-        })
-    }
-}
-
-impl TryFrom<HyprWindowInfo> for HyprvisorMessage {
-    type Error = HyprvisorError;
-    fn try_from(window_info: HyprWindowInfo) -> HyprvisorResult<HyprvisorMessage> {
-        let payload: Vec<u8> = bincode::serialize(&window_info)?;
-        Ok(HyprvisorMessage {
-            message_type: MessageType::Response,
-            header: payload.len(),
-            payload,
-        })
-    }
-}
-
-impl TryFrom<Vec<HyprWorkspaceInfo>> for HyprvisorMessage {
-    type Error = HyprvisorError;
-    fn try_from(workspaces: Vec<HyprWorkspaceInfo>) -> HyprvisorResult<HyprvisorMessage> {
-        let payload: Vec<u8> = bincode::serialize(&workspaces)?;
-        Ok(HyprvisorMessage {
-            message_type: MessageType::Response,
-            header: payload.len(),
-            payload,
-        })
-    }
-}
-
-impl TryFrom<WifiInfo> for HyprvisorMessage {
-    type Error = HyprvisorError;
-    fn try_from(wifi_info: WifiInfo) -> Result<Self, Self::Error> {
-        let payload: Vec<u8> = bincode::serialize(&wifi_info)?;
-        Ok(HyprvisorMessage {
-            message_type: MessageType::Response,
-            header: payload.len(),
             payload,
         })
     }

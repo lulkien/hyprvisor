@@ -4,6 +4,7 @@ use super::{
 };
 use crate::{
     application::utils::HYPRVISOR_SOCKET,
+    bluetooth::start_bluetooth_listener,
     error::{HyprvisorError, HyprvisorResult},
     global::SUBSCRIBERS,
     hyprland::{start_hyprland_listener, window, workspaces},
@@ -44,6 +45,8 @@ pub async fn start_server(filter: LevelFilter) -> HyprvisorResult<()> {
     tokio::spawn(start_hyprland_listener());
 
     tokio::spawn(start_wifi_listener());
+
+    tokio::spawn(start_bluetooth_listener());
 
     listen_ipc_socket().await
 }

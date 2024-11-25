@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::{HyprvisorError, HyprvisorResult},
     hyprland::types::FormattedInfo,
-    ipc::message::HyprvisorMessage,
+    ipc::message::{HyprvisorMessage, MessageType},
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -71,5 +71,17 @@ impl TryFrom<HyprvisorMessage> for WifiInfo {
             return Err(HyprvisorError::InvalidMessage);
         }
         bincode::deserialize(&message.payload).map_err(HyprvisorError::BincodeError)
+    }
+}
+
+impl TryFrom<WifiInfo> for HyprvisorMessage {
+    type Error = HyprvisorError;
+    fn try_from(wifi_info: WifiInfo) -> Result<Self, Self::Error> {
+        let payload: Vec<u8> = bincode::serialize(&wifi_info)?;
+        Ok(HyprvisorMessage {
+            message_type: MessageType::Response,
+            header: payload.len(),
+            payload,
+        })
     }
 }

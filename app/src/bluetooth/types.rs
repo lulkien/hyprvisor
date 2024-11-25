@@ -8,15 +8,14 @@ use bluer::Address;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub(super) struct BluetoothDeviceInfo {
-    pub(super) name: String,
-    pub(super) address: Address,
+pub struct BluetoothDeviceInfo {
+    pub name: String,
+    pub address: Address,
 }
 
-#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub(super) struct BluetoothInfo {
-    pub power_state: bool,
-    pub connected_device_len: u16,
+#[derive(Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct BluetoothInfo {
+    pub powered: bool,
     pub connected_device: Vec<BluetoothDeviceInfo>,
 }
 

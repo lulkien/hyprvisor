@@ -3,6 +3,7 @@ use super::{
     utils::{ping_daemon, HYPRVISOR_SOCKET},
 };
 use crate::{
+    bluetooth::types::BluetoothInfo,
     error::{HyprvisorError, HyprvisorResult},
     hyprland::types::{FormattedInfo, HyprWindowInfo, HyprWorkspaceInfo},
     ipc::{connect_to_socket, message::HyprvisorMessage, HyprvisorReadSock, HyprvisorWriteSock},
@@ -84,6 +85,8 @@ fn parse_opts(opts: SubscribeOpts) -> (SubscriptionID, u32) {
             SubscriptionID::Wifi,
             ssid_length.map_or(25, |sl| sl.min(u8::MAX.into())),
         ),
+
+        SubscribeOpts::Bluetooth => (SubscriptionID::Bluetooth, 0),
     }
 }
 
@@ -117,6 +120,10 @@ fn parse_response(
         SubscriptionID::Wifi => {
             let wifi_info: WifiInfo = message.try_into()?;
             wifi_info.to_formatted_json(extra_data)
+        }
+        SubscriptionID::Bluetooth => {
+            let bt_info: BluetoothInfo = message.try_into()?;
+            bt_info.to_formatted_json(extra_data)
         }
     }
 }

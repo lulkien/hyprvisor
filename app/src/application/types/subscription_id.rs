@@ -9,6 +9,7 @@ pub enum SubscriptionID {
     Workspaces = 0,
     Window = 1,
     Wifi = 2,
+    Bluetooth = 3,
 }
 
 impl From<SubscriptionID> for u8 {
@@ -35,6 +36,7 @@ impl Display for SubscriptionID {
             SubscriptionID::Workspaces => write!(f, "Workspaces"),
             SubscriptionID::Window => write!(f, "Window"),
             SubscriptionID::Wifi => write!(f, "Wifi"),
+            SubscriptionID::Bluetooth => write!(f, "Bluetooth"),
         }
     }
 }

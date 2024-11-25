@@ -32,8 +32,7 @@ pub async fn start_wifi_listener() -> HyprvisorResult<()> {
 }
 
 pub async fn response_to_subscription(stream: &UnixStream) -> HyprvisorResult<()> {
-    let current_wifi = CURRENT_WIFI.clone();
-    let current_wifi = current_wifi.lock().await;
+    let current_wifi = CURRENT_WIFI.lock().await;
 
     let init_message: HyprvisorMessage = HyprvisorMessage::try_from((*current_wifi).clone())?;
     stream.write_message(init_message).await.map(|_| ())

@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     application::utils::HYPRVISOR_SOCKET,
-    bluetooth::start_bluetooth_listener,
+    bluetooth::{self, start_bluetooth_listener},
     error::{HyprvisorError, HyprvisorResult},
     global::SUBSCRIBERS,
     hyprland::{start_hyprland_listener, window, workspaces},
@@ -153,6 +153,10 @@ async fn register_client(stream: UnixStream, message: HyprvisorMessage) -> Hyprv
 
         SubscriptionID::Wifi => {
             wifi::response_to_subscription(&stream).await?;
+        }
+
+        SubscriptionID::Bluetooth => {
+            bluetooth::response_to_subscription(&stream).await?;
         }
     };
 

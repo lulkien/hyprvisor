@@ -27,7 +27,7 @@ impl TryFrom<&[u8]> for ClientInfo {
             return Err(HyprvisorError::ParseError);
         }
 
-        let subscription_id = SubscriptionID::try_from(buffer[0])?;
+        let subscription_id = SubscriptionID::from(buffer[0]);
         let process_id = u32::from_le_bytes(buffer[1..(1 + size_of::<u32>())].try_into().unwrap());
 
         Ok(ClientInfo {

@@ -18,6 +18,7 @@ pub enum HyprvisorError {
     LoggerError(fern::InitError),
     InvalidMessage,
     InvalidResponse,
+    InvalidSubscription,
 }
 
 impl From<io::Error> for HyprvisorError {
@@ -61,6 +62,7 @@ impl Display for HyprvisorError {
             HyprvisorError::LoggerError(err) => write!(f, "Logger error: {err}"),
             HyprvisorError::InvalidMessage => write!(f, "Invalid message"),
             HyprvisorError::InvalidResponse => write!(f, "Invalid response"),
+            HyprvisorError::InvalidSubscription => write!(f, "Invalid subscription"),
         }
     }
 }

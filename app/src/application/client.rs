@@ -43,7 +43,7 @@ fn init_logger(filter: LevelFilter) -> HyprvisorResult<()> {
     let logger = fern::Dispatch::new()
         .format(move |out, message, record| {
             out.finish(format_args!(
-                "({}){} [{}] {} - {}",
+                "({}) {} [{}] {} - {}",
                 process::id(),
                 format_rfc3339_seconds(SystemTime::now()),
                 record.level(),
@@ -124,6 +124,9 @@ fn parse_response(
         SubscriptionID::Bluetooth => {
             let bt_info: BluetoothInfo = message.try_into()?;
             bt_info.to_formatted_json(extra_data)
+        }
+        SubscriptionID::Invalid => {
+            unreachable!()
         }
     }
 }

@@ -113,9 +113,17 @@ async fn polling_data(adapter: Adapter, discovered_addresses: Vec<Address>) -> H
 async fn handle_power_state(powered: bool) -> bool {
     if powered != BLUETOOTH_POWERED.load(Ordering::SeqCst) {
         BLUETOOTH_POWERED.store(powered, Ordering::SeqCst);
+
         if !powered {
-            let _ = broadcast_info(BluetoothInfo::default()).await;
+            let mut current_devices = BLUETOOTH_DEVICES.lock().await;
+            current_devices.clear();
         }
+
+        let _ = broadcast_info(BluetoothInfo {
+            powered,
+            connected_devices: (BLUETOOTH_DEVICES.lock().await).clone(),
+        })
+        .await;
     }
 
     powered

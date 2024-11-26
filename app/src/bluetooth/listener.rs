@@ -28,11 +28,11 @@ pub async fn start_bluetooth_listener() -> HyprvisorResult<()> {
         sleep(Duration::from_millis(REBOOT_IWD_DELAY)).await;
     }
 
-    Ok(())
+    Err(HyprvisorError::BluetoothError)
 }
 
 pub async fn response_to_subscription(stream: &UnixStream) -> HyprvisorResult<()> {
-    let bt_info = match !BLUETOOTH_POWERED.load(Ordering::SeqCst) {
+    let bt_info = match BLUETOOTH_POWERED.load(Ordering::SeqCst) {
         true => BluetoothInfo {
             powered: true,
             connected_device: (BLUETOOTH_DEVICES.lock().await).clone(),

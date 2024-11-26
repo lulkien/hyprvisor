@@ -16,7 +16,7 @@ pub struct BluetoothDeviceInfo {
 #[derive(Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 pub struct BluetoothInfo {
     pub powered: bool,
-    pub connected_device: Vec<BluetoothDeviceInfo>,
+    pub connected_devices: Vec<BluetoothDeviceInfo>,
 }
 
 impl FormattedInfo for BluetoothInfo {

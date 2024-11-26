@@ -35,7 +35,7 @@ pub async fn response_to_subscription(stream: &UnixStream) -> HyprvisorResult<()
     let bt_info = match BLUETOOTH_POWERED.load(Ordering::SeqCst) {
         true => BluetoothInfo {
             powered: true,
-            connected_device: (BLUETOOTH_DEVICES.lock().await).clone(),
+            connected_devices: (BLUETOOTH_DEVICES.lock().await).clone(),
         },
         false => BluetoothInfo::default(),
     };
@@ -131,7 +131,7 @@ async fn handle_connected_devices(connected_devices: Vec<BluetoothDeviceInfo>) {
     *current_devices = connected_devices;
     let _ = broadcast_info(BluetoothInfo {
         powered: true,
-        connected_device: (*current_devices).clone(),
+        connected_devices: (*current_devices).clone(),
     })
     .await;
 }

@@ -1,8 +1,8 @@
-pub mod iwd_listener;
+pub mod listener;
 pub mod types;
 
-pub use iwd_listener::response_to_subscription;
-pub use iwd_listener::start_wifi_listener;
+pub use listener::response_to_subscription;
+pub use listener::start_wifi_listener;
 
 use crate::wifi::types::WifiInfo;
 

@@ -1,7 +1,7 @@
 use super::FormattedInfo;
 use crate::{
     error::{HyprvisorError, HyprvisorResult},
-    ipc::message::HyprvisorMessage,
+    ipc::message::{HyprvisorMessage, MessageType},
 };
 
 use serde::{Deserialize, Serialize};
@@ -45,5 +45,29 @@ impl FormattedInfo for Vec<HyprWorkspaceInfo> {
         modified.sort_by_key(|info| info.id);
 
         serde_json::to_string(&modified).map_err(HyprvisorError::JsonError)
+    }
+}
+
+impl TryFrom<Vec<HyprWorkspaceInfo>> for HyprvisorMessage {
+    type Error = HyprvisorError;
+    fn try_from(workspaces: Vec<HyprWorkspaceInfo>) -> HyprvisorResult<HyprvisorMessage> {
+        let payload: Vec<u8> = bincode::serialize(&workspaces)?;
+        Ok(HyprvisorMessage {
+            message_type: MessageType::Response,
+            header: payload.len(),
+            payload,
+        })
+    }
+}
+
+impl TryFrom<&[HyprWorkspaceInfo]> for HyprvisorMessage {
+    type Error = HyprvisorError;
+    fn try_from(workspaces: &[HyprWorkspaceInfo]) -> HyprvisorResult<HyprvisorMessage> {
+        let payload: Vec<u8> = bincode::serialize(workspaces)?;
+        Ok(HyprvisorMessage {
+            message_type: MessageType::Response,
+            header: payload.len(),
+            payload,
+        })
     }
 }

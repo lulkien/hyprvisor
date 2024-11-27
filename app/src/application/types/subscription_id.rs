@@ -1,5 +1,3 @@
-use crate::error::HyprvisorError;
-
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result};
 
@@ -9,6 +7,8 @@ pub enum SubscriptionID {
     Workspaces = 0,
     Window = 1,
     Wifi = 2,
+    Bluetooth = 3,
+    Invalid = 255,
 }
 
 impl From<SubscriptionID> for u8 {
@@ -17,14 +17,14 @@ impl From<SubscriptionID> for u8 {
     }
 }
 
-impl TryFrom<u8> for SubscriptionID {
-    type Error = HyprvisorError;
-    fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
+impl From<u8> for SubscriptionID {
+    fn from(value: u8) -> Self {
         match value {
-            0 => Ok(SubscriptionID::Workspaces),
-            1 => Ok(SubscriptionID::Window),
-            2 => Ok(SubscriptionID::Wifi),
-            _ => Err(HyprvisorError::ParseError),
+            0 => SubscriptionID::Workspaces,
+            1 => SubscriptionID::Window,
+            2 => SubscriptionID::Wifi,
+            3 => SubscriptionID::Bluetooth,
+            _ => SubscriptionID::Invalid,
         }
     }
 }
@@ -35,6 +35,8 @@ impl Display for SubscriptionID {
             SubscriptionID::Workspaces => write!(f, "Workspaces"),
             SubscriptionID::Window => write!(f, "Window"),
             SubscriptionID::Wifi => write!(f, "Wifi"),
+            SubscriptionID::Bluetooth => write!(f, "Bluetooth"),
+            SubscriptionID::Invalid => write!(f, "Invalid"),
         }
     }
 }

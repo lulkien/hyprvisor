@@ -3,6 +3,7 @@ use super::{
     utils::{ping_daemon, HYPRVISOR_SOCKET},
 };
 use crate::{
+    bluetooth::types::BluetoothInfo,
     error::{HyprvisorError, HyprvisorResult},
     hyprland::types::{FormattedInfo, HyprWindowInfo, HyprWorkspaceInfo},
     ipc::{connect_to_socket, message::HyprvisorMessage, HyprvisorReadSock, HyprvisorWriteSock},
@@ -42,7 +43,7 @@ fn init_logger(filter: LevelFilter) -> HyprvisorResult<()> {
     let logger = fern::Dispatch::new()
         .format(move |out, message, record| {
             out.finish(format_args!(
-                "({}){} [{}] {} - {}",
+                "({}) {} [{}] {} - {}",
                 process::id(),
                 format_rfc3339_seconds(SystemTime::now()),
                 record.level(),
@@ -84,6 +85,8 @@ fn parse_opts(opts: SubscribeOpts) -> (SubscriptionID, u32) {
             SubscriptionID::Wifi,
             ssid_length.map_or(25, |sl| sl.min(u8::MAX.into())),
         ),
+
+        SubscribeOpts::Bluetooth => (SubscriptionID::Bluetooth, 0),
     }
 }
 
@@ -117,6 +120,13 @@ fn parse_response(
         SubscriptionID::Wifi => {
             let wifi_info: WifiInfo = message.try_into()?;
             wifi_info.to_formatted_json(extra_data)
+        }
+        SubscriptionID::Bluetooth => {
+            let bt_info: BluetoothInfo = message.try_into()?;
+            bt_info.to_formatted_json(extra_data)
+        }
+        SubscriptionID::Invalid => {
+            unreachable!()
         }
     }
 }

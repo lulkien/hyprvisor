@@ -4,6 +4,7 @@ use super::{
 };
 use crate::{
     application::utils::HYPRVISOR_SOCKET,
+    bluetooth::{self, start_bluetooth_listener},
     error::{HyprvisorError, HyprvisorResult},
     global::SUBSCRIBERS,
     hyprland::{start_hyprland_listener, window, workspaces},
@@ -44,6 +45,8 @@ pub async fn start_server(filter: LevelFilter) -> HyprvisorResult<()> {
     tokio::spawn(start_hyprland_listener());
 
     tokio::spawn(start_wifi_listener());
+
+    tokio::spawn(start_bluetooth_listener());
 
     listen_ipc_socket().await
 }
@@ -126,13 +129,6 @@ async fn process_command(stream: UnixStream, message: HyprvisorMessage) -> Hyprv
 async fn register_client(stream: UnixStream, message: HyprvisorMessage) -> HyprvisorResult<()> {
     let client_info = ClientInfo::try_from(message.payload.as_slice())?;
 
-    let subscribers = SUBSCRIBERS.clone();
-
-    let mut subscribers_ref = subscribers.lock().await;
-    subscribers_ref
-        .entry(client_info.subscription_id)
-        .or_insert(HashMap::new());
-
     log::info!(
         "Client pid {} subscribe to {}",
         client_info.process_id,
@@ -151,9 +147,24 @@ async fn register_client(stream: UnixStream, message: HyprvisorMessage) -> Hyprv
         SubscriptionID::Wifi => {
             wifi::response_to_subscription(&stream).await?;
         }
+
+        SubscriptionID::Bluetooth => {
+            bluetooth::response_to_subscription(&stream).await?;
+        }
+
+        SubscriptionID::Invalid => {
+            return Err(HyprvisorError::InvalidSubscription);
+        }
     };
 
     let (_, writer) = stream.into_split();
+
+    //let subscribers = SUBSCRIBERS.clone();
+
+    let mut subscribers_ref = SUBSCRIBERS.lock().await;
+    subscribers_ref
+        .entry(client_info.subscription_id)
+        .or_insert(HashMap::new());
 
     subscribers_ref
         .get_mut(&client_info.subscription_id)

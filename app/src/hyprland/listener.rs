@@ -13,8 +13,8 @@ pub async fn start_hyprland_listener() -> HyprvisorResult<()> {
     loop {
         match fetch_hyprland_event(&mut stream, &mut buffer).await {
             events if events.contains(&HyprEvent::WindowChanged) => {
-                send_window_info().await;
-                send_workspace_info().await;
+                handle_window_change().await;
+                handle_workspace_change().await;
             }
             events
                 if events.contains_at_least(&[
@@ -22,21 +22,17 @@ pub async fn start_hyprland_listener() -> HyprvisorResult<()> {
                     &HyprEvent::WorkspaceDestroyed,
                 ]) =>
             {
-                send_workspace_info().await;
+                handle_workspace_change().await;
             }
             _ => {}
         }
     }
 }
 
-async fn send_window_info() {
-    if let Err(e) = window::broadcast_info().await {
-        log::debug!("Window: {e}");
-    }
+async fn handle_window_change() {
+    let _ = window::handle_new_event().await;
 }
 
-async fn send_workspace_info() {
-    if let Err(e) = workspaces::broadcast_info().await {
-        log::debug!("Workspace: {e}");
-    }
+async fn handle_workspace_change() {
+    let _ = workspaces::handle_new_event().await;
 }

@@ -13,10 +13,12 @@ pub enum HyprvisorError {
     ParseError,
     NoSubscriber,
     WifiError,
+    BluetoothError,
     FalseAlarm,
     LoggerError(fern::InitError),
     InvalidMessage,
     InvalidResponse,
+    InvalidSubscription,
 }
 
 impl From<io::Error> for HyprvisorError {
@@ -56,9 +58,11 @@ impl Display for HyprvisorError {
             HyprvisorError::NoSubscriber => write!(f, "No subscriber"),
             HyprvisorError::FalseAlarm => write!(f, "False alarm"),
             HyprvisorError::WifiError => write!(f, "Wifi error"),
+            HyprvisorError::BluetoothError => write!(f, "Bluetooth error"),
             HyprvisorError::LoggerError(err) => write!(f, "Logger error: {err}"),
             HyprvisorError::InvalidMessage => write!(f, "Invalid message"),
             HyprvisorError::InvalidResponse => write!(f, "Invalid response"),
+            HyprvisorError::InvalidSubscription => write!(f, "Invalid subscription"),
         }
     }
 }

@@ -53,6 +53,9 @@ pub enum SubscribeOpts {
 
     #[command(name = "wifi", alias = "wf")]
     Wifi { ssid_length: Option<u32> },
+
+    #[command(name = "bluetooth", alias = "bt")]
+    Bluetooth,
 }
 
 impl Opts {

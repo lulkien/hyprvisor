@@ -1,7 +1,7 @@
 use super::FormattedInfo;
 use crate::{
     error::{HyprvisorError, HyprvisorResult},
-    ipc::message::HyprvisorMessage,
+    ipc::message::{HyprvisorMessage, MessageType},
 };
 
 use serde::{Deserialize, Serialize};
@@ -29,5 +29,17 @@ impl TryFrom<HyprvisorMessage> for HyprWindowInfo {
             return Err(HyprvisorError::InvalidMessage);
         }
         bincode::deserialize(&message.payload).map_err(HyprvisorError::BincodeError)
+    }
+}
+
+impl TryFrom<HyprWindowInfo> for HyprvisorMessage {
+    type Error = HyprvisorError;
+    fn try_from(window_info: HyprWindowInfo) -> HyprvisorResult<HyprvisorMessage> {
+        let payload: Vec<u8> = bincode::serialize(&window_info)?;
+        Ok(HyprvisorMessage {
+            message_type: MessageType::Response,
+            header: payload.len(),
+            payload,
+        })
     }
 }

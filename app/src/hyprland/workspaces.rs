@@ -16,6 +16,20 @@ pub async fn response_to_subscription(stream: &UnixStream) -> HyprvisorResult<()
     }
 }
 
+pub(super) async fn handle_new_event() -> HyprvisorResult<()> {
+    let mut current_workspaces = CURRENT_WORKSPACES.lock().await;
+
+    let new_workspaces = get_hypr_workspace_info().await?;
+
+    if *current_workspaces == new_workspaces {
+        return Ok(());
+    }
+
+    *current_workspaces = new_workspaces;
+
+    broadcast_info(&current_workspaces).await
+}
+
 async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
     let (active_workspace, all_workspace) = tokio::try_join!(
         send_hyprland_command("j/activeworkspace"),
@@ -39,7 +53,7 @@ async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
     }
 }
 
-pub(super) async fn broadcast_info() -> HyprvisorResult<()> {
+async fn broadcast_info(workspace_info: &[HyprWorkspaceInfo]) -> HyprvisorResult<()> {
     let mut subscribers_ref = SUBSCRIBERS.lock().await;
 
     let ws_subscribers = match subscribers_ref.get_mut(&SubscriptionID::Workspaces) {
@@ -49,18 +63,7 @@ pub(super) async fn broadcast_info() -> HyprvisorResult<()> {
         }
     };
 
-    let current_workspaces = CURRENT_WORKSPACES.clone();
-    let mut current_workspaces = current_workspaces.lock().await;
-
-    let new_workspaces = get_hypr_workspace_info().await?;
-
-    if *current_workspaces == new_workspaces {
-        return Err(HyprvisorError::FalseAlarm);
-    }
-
-    *current_workspaces = new_workspaces;
-
-    let message: HyprvisorMessage = HyprvisorMessage::try_from(current_workspaces.clone())?;
+    let message: HyprvisorMessage = HyprvisorMessage::try_from(workspace_info)?;
 
     let mut disconnected_pid = Vec::new();
 

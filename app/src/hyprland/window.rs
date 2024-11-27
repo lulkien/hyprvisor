@@ -16,6 +16,20 @@ pub async fn response_to_subscription(stream: &UnixStream) -> HyprvisorResult<()
     }
 }
 
+pub(super) async fn handle_new_event() -> HyprvisorResult<()> {
+    let mut current_window = CURRENT_WINDOW.lock().await;
+
+    let window = get_hypr_active_window().await?;
+
+    if *current_window == window {
+        return Ok(());
+    }
+
+    *current_window = window;
+
+    broadcast_info(&current_window).await
+}
+
 async fn get_hypr_active_window() -> HyprvisorResult<HyprWindowInfo> {
     let json_data: serde_json::Value =
         serde_json::from_slice(&send_hyprland_command("j/activewindow").await?)?;
@@ -26,7 +40,7 @@ async fn get_hypr_active_window() -> HyprvisorResult<HyprWindowInfo> {
     })
 }
 
-pub(super) async fn broadcast_info() -> HyprvisorResult<()> {
+async fn broadcast_info(window_info: &HyprWindowInfo) -> HyprvisorResult<()> {
     let mut subscribers_ref = SUBSCRIBERS.lock().await;
 
     let subscribers = match subscribers_ref.get_mut(&SubscriptionID::Window) {
@@ -36,18 +50,7 @@ pub(super) async fn broadcast_info() -> HyprvisorResult<()> {
         }
     };
 
-    let current_window = CURRENT_WINDOW.clone();
-    let mut current_window = current_window.lock().await;
-
-    let window = get_hypr_active_window().await?;
-
-    if *current_window == window {
-        return Err(HyprvisorError::FalseAlarm);
-    }
-
-    *current_window = window;
-
-    let message: HyprvisorMessage = HyprvisorMessage::try_from(current_window.clone())?;
+    let message: HyprvisorMessage = HyprvisorMessage::try_from(window_info.clone())?;
 
     let mut disconnected_pid = Vec::new();
 

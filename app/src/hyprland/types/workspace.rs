@@ -59,3 +59,15 @@ impl TryFrom<Vec<HyprWorkspaceInfo>> for HyprvisorMessage {
         })
     }
 }
+
+impl TryFrom<&[HyprWorkspaceInfo]> for HyprvisorMessage {
+    type Error = HyprvisorError;
+    fn try_from(workspaces: &[HyprWorkspaceInfo]) -> HyprvisorResult<HyprvisorMessage> {
+        let payload: Vec<u8> = bincode::serialize(workspaces)?;
+        Ok(HyprvisorMessage {
+            message_type: MessageType::Response,
+            header: payload.len(),
+            payload,
+        })
+    }
+}

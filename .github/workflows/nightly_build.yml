@@ -4,40 +4,52 @@ on:
     branches:
       - 'feature/*'
       - 'issue/*'
+      - 'testing/*'
   pull_request:
     branches:
       - 'feature/*'
       - 'issue/*'
+      - 'testing/*'
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Check out
         uses: actions/checkout@v4
-      - name: Install Dependencies
+      - name: Set up Docker container with Arch Linux
         run: |
-          sudo apt-get update && sudo apt-get install -y libdbus-1-dev
-      - name: Setup rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          components: rustfmt, clippy
-      - name: Cargo check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-      - name: Cargo clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-      - name: Cargo build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
+          docker pull archlinux:latest
+          docker run --name arch-build -dit archlinux:latest
+          docker exec arch-build pacman -Syu --noconfirm
+          docker exec arch-build pacman -S --noconfirm base-devel libdbus
+      - name: Install Rust toolchain in Docker
+        run: |
+          docker exec arch-build sh -c "curl https://sh.rustup.rs -sSf | sh -s -- -y"
+          docker exec arch-build sh -c ". /root/.cargo/env && rustup default nightly && rustup component add rustfmt clippy"
+      - name: Cargo check in Docker
+        run: |
+          docker exec arch-build sh -c ". /root/.cargo/env && cd /workspace && cargo check"
+      - name: Cargo clippy in Docker
+        run: |
+          docker exec arch-build sh -c ". /root/.cargo/env && cd /workspace && cargo clippy -- -D warnings"
+      - name: Cargo fmt (check only) in Docker
+        run: |
+          docker exec arch-build sh -c ". /root/.cargo/env && cd /workspace && cargo fmt --all -- --check"
+      - name: Cargo build in Docker
+        run: |
+          docker exec arch-build sh -c ". /root/.cargo/env && cd /workspace && cargo build --release --verbose"
+      - name: Build archive from Docker
+        shell: bash
+        run: |
+          binary_name="hyprvisor"
+          dirname="${binary_name}-${{ github.ref_name }}-x86_64-unknown-linux-gnu"
+          mkdir -p "$dirname"
+          docker cp arch-build:/workspace/target/release/$binary_name "$dirname/"
+          tar -czf "$dirname.tar.gz" "$dirname"
+          echo "RELEASE_PKG=$dirname.tar.gz" >> $GITHUB_ENV
+      - name: Calculate SHA256 checksum
+        shell: bash
+        run: |
+          sha256sum "$RELEASE_PKG" > "$RELEASE_PKG.sha256"
+          cat "$RELEASE_PKG.sha256"
+          echo "SHA256SUM=$(cat ${RELEASE_PKG}.sha256)" >> $GITHUB_ENV

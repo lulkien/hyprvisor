@@ -26,6 +26,7 @@ jobs:
         run: |
           docker exec arch-build sh -c "curl https://sh.rustup.rs -sSf | sh -s -- -y"
           docker exec arch-build sh -c ". /root/.cargo/env && rustup default stable && rustup component add rustfmt clippy"
+          docker cp . arch-build:/workspace
       - name: Cargo check in Docker
         run: |
           docker exec arch-build sh -c ". /root/.cargo/env && cd /workspace && cargo check"

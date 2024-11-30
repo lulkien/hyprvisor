@@ -10,7 +10,7 @@ license=('UNLICENSE')
 source=("$pkgname-v$pkgver-$arch-unknown-linux-gnu.tar.gz::$url/releases/download/v$pkgver/$pkgname-v$pkgver-$arch-unknown-linux-gnu.tar.gz")
 sha256sums=('58e56521f84c429870a2d382715c3b562ea59c669ea11e414fe1df8b558f63f1')
 provides=()
-depends=()
+depends=('hyprland' 'bluez' 'iwd' 'dbus')
 
 package() {
     cd "$srcdir/$pkgname-v$pkgver-$arch-unknown-linux-gnu"

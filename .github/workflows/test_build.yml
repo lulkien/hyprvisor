@@ -29,24 +29,18 @@ jobs:
           docker cp . arch-build:/workspace
           docker exec arch-build sh -c ". /root/.cargo/env && cd /workspace && cargo build --release --verbose"
           docker cp arch-build:/workspace/target target
-      # - name: Build archive
-      #   shell: bash
-      #   run: |
-      #     binary_name="hyprvisor"
-      #     dirname="$binary_name-${{ github.ref_name }}-x86_64-unknown-linux-gnu"
-      #     mkdir "$dirname"
-      #     mv "target/release/$binary_name" "$dirname"
-      #     tar -czf "$dirname.tar.gz" "$dirname"
       - name: Build archive
         shell: bash
         run: |
           binary_name="hyprvisor"
           dirname="${binary_name}-${{ github.ref_name }}-x86_64-unknown-linux-gnu"
-          mkdir -p "$dirname" # Create the directory
-          mv "target/release/$binary_name" "$dirname/" # Move the binary into the directory
-          tar -czf "$dirname.tar.gz" "$dirname" # Create a tar.gz archive
+          mkdir -p "$dirname"
+          mv "target/release/$binary_name" "$dirname/"
+          tar -czf "$dirname.tar.gz" "$dirname"
       - name: Calculate SHA256 checksum
         shell: bash
         run: |
+          binary_name="hyprvisor"
+          dirname="${binary_name}-${{ github.ref_name }}-x86_64-unknown-linux-gnu"
           sha256sum "$dirname.tar.gz" > "$dirname.tar.gz.sha256"
           cat "$dirname.tar.gz.sha256"

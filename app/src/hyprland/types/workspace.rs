@@ -5,13 +5,22 @@ use crate::{
 };
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
-#[derive(Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 pub struct HyprWorkspaceInfo {
     pub id: u32,
     pub occupied: bool,
     pub active: bool,
+}
+
+impl HyprWorkspaceInfo {
+    pub fn default_workspace(id: u32) -> Self {
+        Self {
+            id,
+            occupied: false,
+            active: false,
+        }
+    }
 }
 
 impl TryFrom<HyprvisorMessage> for Vec<HyprWorkspaceInfo> {
@@ -25,26 +34,24 @@ impl TryFrom<HyprvisorMessage> for Vec<HyprWorkspaceInfo> {
 }
 
 impl FormattedInfo for Vec<HyprWorkspaceInfo> {
-    fn to_formatted_json(self, extra_data: &u32) -> HyprvisorResult<String> {
-        if self.len() > *extra_data as usize {
-            return serde_json::to_string(&self).map_err(HyprvisorError::JsonError);
-        }
+    fn to_formatted_json(mut self, extra_data: &u32) -> HyprvisorResult<String> {
+        self.sort_by_key(|ws| ws.id);
 
-        let mut table: HashMap<u32, HyprWorkspaceInfo> =
-            self.into_iter().map(|ws| (ws.id, ws)).collect();
+        let (left_half, right_half): (Vec<HyprWorkspaceInfo>, Vec<HyprWorkspaceInfo>) =
+            self.iter().partition(|ws| ws.id <= *extra_data);
 
-        (1..=*extra_data).for_each(|id| {
-            table.entry(id).or_insert_with(|| HyprWorkspaceInfo {
-                id,
-                occupied: false,
-                active: false,
-            });
-        });
+        self = (1..=*extra_data)
+            .map(|id| {
+                *left_half
+                    .iter()
+                    .find(|&ws| ws.id == id)
+                    .unwrap_or(&HyprWorkspaceInfo::default_workspace(id))
+            })
+            .collect();
 
-        let mut modified: Vec<HyprWorkspaceInfo> = table.into_values().collect();
-        modified.sort_by_key(|info| info.id);
+        self.extend(right_half);
 
-        serde_json::to_string(&modified).map_err(HyprvisorError::JsonError)
+        serde_json::to_string(&self).map_err(HyprvisorError::JsonError)
     }
 }
 

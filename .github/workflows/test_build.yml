@@ -23,11 +23,11 @@ jobs:
       - name: Install toolchain in Docker
         run: |
           docker exec arch-build sh -c "curl https://sh.rustup.rs -sSf | sh -s -- -y"
-          docker exec arch-build sh -c "source $HOME/.cargo/env && rustup default stable"
+          docker exec arch-build sh -c ". /root/.cargo/env && rustup default stable"
       - name: Build in Docker
         run: |
           docker cp . arch-build:/workspace
-          docker exec arch-build sh -c "cd /workspace && source $HOME/.cargo/env && cargo build --release --verbose"
+          docker exec arch-build sh -c ". /root/.cargo/env && cd /workspace && cargo build --release --verbose"
           docker cp arch-build:/workspace/target target
       - name: Build archive
         shell: bash

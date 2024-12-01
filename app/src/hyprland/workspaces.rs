@@ -48,6 +48,7 @@ async fn get_hypr_workspace_info() -> HyprvisorResult<Vec<HyprWorkspaceInfo>> {
                 occupied: js_obj["windows"].as_i64().unwrap_or_default() > 0,
                 active: js_obj["id"].as_u64().unwrap_or_default() as u32 == active_ws_id,
             })
+            .filter(|&ws| ws.active || ws.occupied)
             .collect()),
         _ => Err(HyprvisorError::ParseError),
     }

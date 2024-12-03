@@ -6,8 +6,7 @@ ConditionEnvironment=HYPRLAND_INSTANCE_SIGNATURE
 
 [Service]
 Type=simple
-# ExecStart=/usr/bin/hyprvisor
-ExecStart=/usr/local/bin/hyprvisor
+ExecStart=/usr/bin/hyprvisor daemon
 Restart=no
 
 [Install]

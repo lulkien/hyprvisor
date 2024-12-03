@@ -1,0 +1,13 @@
+[Unit]
+Description=Hyprland's listerner daemon
+PartOf=graphical-session.target
+After=graphical-session.target
+ConditionEnvironment=HYPRLAND_INSTANCE_SIGNATURE
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/hyprvisor daemon
+Restart=no
+
+[Install]
+WantedBy=graphical-session.target

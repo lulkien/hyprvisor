@@ -39,13 +39,16 @@ jobs:
       - name: Cargo build in Docker
         run: |
           docker exec arch-build sh -c ". /root/.cargo/env && cd /workspace && cargo build --release --verbose"
+          docker cp arch-build:/workspace/target target
+          docker cp arch-build:/workspace/systemd systemd
       - name: Build archive from Docker
         shell: bash
         run: |
           binary_name="hyprvisor"
           dirname="${binary_name}-${{ github.ref_name }}-x86_64-unknown-linux-gnu"
           mkdir -p "$dirname"
-          docker cp arch-build:/workspace/target/release/$binary_name "$dirname/"
+          mv "target/release/$binary_name" "$dirname/"
+          mv "systemd/hyprvisor.service" "$dirname/"
           tar -czf "$dirname.tar.gz" "$dirname"
           echo "RELEASE_PKG=$dirname.tar.gz" >> $GITHUB_ENV
       - name: Calculate SHA256 checksum

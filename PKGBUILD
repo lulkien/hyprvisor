@@ -14,5 +14,8 @@ depends=('hyprland' 'bluez' 'iwd' 'dbus')
 
 package() {
     cd "$srcdir/$pkgname-v$pkgver-$arch-unknown-linux-gnu"
+
     install -Dm 755 hyprvisor "${pkgdir}/usr/bin/hyprvisor"
+
+    install -Dm 644 hyprvisor.service "${pkgdir}/usr/lib/systemd/user/hyprvisor.service"
 }

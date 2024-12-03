@@ -19,7 +19,7 @@ jobs:
           docker pull archlinux:latest
           docker run --name arch-build -dit archlinux:latest
           docker exec arch-build pacman -Syu --noconfirm
-          docker exec arch-build pacman -S --noconfirm base-devel libdbus
+          docker exec arch-build pacman -S --noconfirm base-devel dbus
       - name: Install toolchain in Docker
         run: |
           docker exec arch-build sh -c "curl https://sh.rustup.rs -sSf | sh -s -- -y"
@@ -27,7 +27,7 @@ jobs:
       - name: Build in Docker
         run: |
           docker cp . arch-build:/workspace
-          docker exec arch-build sh -c ". /root/.cargo/env && cd /workspace && cargo build --release --verbose"
+          docker exec arch-build sh -c ". /root/.cargo/env && cd /workspace && cargo build --release"
           docker cp arch-build:/workspace/target target
           docker cp arch-build:/workspace/systemd systemd
       - name: Build archive

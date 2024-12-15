@@ -8,7 +8,7 @@ arch=("x86_64")
 url="https://github.com/lulkien/hyprvisor"
 license=('UNLICENSE')
 source=("$pkgname-v$pkgver-$arch-unknown-linux-gnu.tar.gz::$url/releases/download/v$pkgver/$pkgname-v$pkgver-$arch-unknown-linux-gnu.tar.gz")
-sha256sums=('c957e87f95b574c4e9da2b4d53a93b848596256071abebc3a6edb5e36fc4e01d')
+sha256sums=('7b013f6eb2569bd89469f21c3447547d1f46bad11ea89f96424a60372f784103')
 provides=()
 depends=('hyprland' 'bluez' 'iwd' 'dbus')
 

@@ -1,14 +1,14 @@
 # Maintainer: Kien H. Luu <kien.luuhoang.arch@gmail.com>
 
 pkgname=hyprvisor
-pkgver=0.4.3
+pkgver=0.4.4
 pkgrel=1
 pkgdesc="Hyprvisor is a backend watcher for Hyprland."
 arch=("x86_64")
 url="https://github.com/lulkien/hyprvisor"
 license=('UNLICENSE')
 source=("$pkgname-v$pkgver-$arch-unknown-linux-gnu.tar.gz::$url/releases/download/v$pkgver/$pkgname-v$pkgver-$arch-unknown-linux-gnu.tar.gz")
-sha256sums=('58e56521f84c429870a2d382715c3b562ea59c669ea11e414fe1df8b558f63f1')
+sha256sums=('8f39935fe49a811b8341b6c048c7d12a6e0882e1afeeadf0a2b790488b246b32')
 provides=()
 depends=('hyprland' 'bluez' 'iwd' 'dbus')
 

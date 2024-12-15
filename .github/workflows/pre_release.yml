@@ -2,13 +2,13 @@ name: Test Build
 on:
   push:
     branches:
-      - "testing/*"
+      - "v[0-9]+.[0-9]+.[0-9]+"
 permissions:
   contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: startsWith(github.event.head_commit.message, '[BUILD]')
+    if: startsWith(github.event.head_commit.message, 'pre_release:')
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -17,7 +17,7 @@ jobs:
           docker pull archlinux:latest
           docker run --name arch-build -dit archlinux:latest
           docker exec arch-build pacman -Syu --noconfirm
-          docker exec arch-build pacman -S --noconfirm base-devel libdbus
+          docker exec arch-build pacman -S --noconfirm base-devel dbus
       - name: Install Rust toolchain in Docker
         run: |
           docker exec arch-build sh -c "curl https://sh.rustup.rs -sSf | sh -s -- -y"

@@ -1,7 +1,7 @@
 # Maintainer: Kien H. Luu <kien.luuhoang.arch@gmail.com>
 
 pkgname=hyprvisor
-pkgver=0.4.3
+pkgver=0.4.4
 pkgrel=1
 pkgdesc="Hyprvisor is a backend watcher for Hyprland."
 arch=("x86_64")

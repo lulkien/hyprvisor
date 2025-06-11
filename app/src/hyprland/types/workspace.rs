@@ -4,6 +4,7 @@ use crate::{
     ipc::message::{HyprvisorMessage, MessageType},
 };
 
+use bincode::{config::legacy, serde::encode_to_vec};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -29,7 +30,14 @@ impl TryFrom<HyprvisorMessage> for Vec<HyprWorkspaceInfo> {
         if !message.is_valid() {
             return Err(HyprvisorError::InvalidMessage);
         }
-        bincode::deserialize(&message.payload).map_err(HyprvisorError::BincodeError)
+
+        let decoded: Result<(Vec<HyprWorkspaceInfo>, usize), _> =
+            bincode::serde::decode_from_slice(&message.payload, legacy());
+
+        match decoded {
+            Ok((data, len)) if len == message.payload.len() => Ok(data),
+            Err(_) | Ok(_) => Err(HyprvisorError::BincodeError),
+        }
     }
 }
 
@@ -58,7 +66,7 @@ impl FormattedInfo for Vec<HyprWorkspaceInfo> {
 impl TryFrom<Vec<HyprWorkspaceInfo>> for HyprvisorMessage {
     type Error = HyprvisorError;
     fn try_from(workspaces: Vec<HyprWorkspaceInfo>) -> HyprvisorResult<HyprvisorMessage> {
-        let payload: Vec<u8> = bincode::serialize(&workspaces)?;
+        let payload: Vec<u8> = encode_to_vec(workspaces, legacy())?;
         Ok(HyprvisorMessage {
             message_type: MessageType::Response,
             header: payload.len(),
@@ -70,7 +78,7 @@ impl TryFrom<Vec<HyprWorkspaceInfo>> for HyprvisorMessage {
 impl TryFrom<&[HyprWorkspaceInfo]> for HyprvisorMessage {
     type Error = HyprvisorError;
     fn try_from(workspaces: &[HyprWorkspaceInfo]) -> HyprvisorResult<HyprvisorMessage> {
-        let payload: Vec<u8> = bincode::serialize(workspaces)?;
+        let payload: Vec<u8> = encode_to_vec(workspaces, legacy())?;
         Ok(HyprvisorMessage {
             message_type: MessageType::Response,
             header: payload.len(),

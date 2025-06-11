@@ -13,7 +13,6 @@ use crate::{
         HyprvisorReadSock, HyprvisorWriteSock,
     },
     opts::CommandOpts,
-    wifi::{self, start_wifi_listener},
 };
 
 use humantime::format_rfc3339_seconds;
@@ -43,8 +42,6 @@ pub async fn start_server(filter: LevelFilter) -> HyprvisorResult<()> {
     log::info!("-------------------- START HYPRVISOR DAEMON --------------------");
 
     tokio::spawn(start_hyprland_listener());
-
-    tokio::spawn(start_wifi_listener());
 
     tokio::spawn(start_bluetooth_listener());
 
@@ -144,8 +141,8 @@ async fn register_client(stream: UnixStream, message: HyprvisorMessage) -> Hyprv
             workspaces::response_to_subscription(&stream).await?;
         }
 
-        SubscriptionID::Wifi => {
-            wifi::response_to_subscription(&stream).await?;
+        SubscriptionID::Network => {
+            todo!()
         }
 
         SubscriptionID::Bluetooth => {
@@ -158,8 +155,6 @@ async fn register_client(stream: UnixStream, message: HyprvisorMessage) -> Hyprv
     };
 
     let (_, writer) = stream.into_split();
-
-    //let subscribers = SUBSCRIBERS.clone();
 
     let mut subscribers_ref = SUBSCRIBERS.lock().await;
     subscribers_ref

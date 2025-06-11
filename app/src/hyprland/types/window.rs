@@ -4,6 +4,10 @@ use crate::{
     ipc::message::{HyprvisorMessage, MessageType},
 };
 
+use bincode::{
+    config::legacy,
+    serde::{decode_from_slice, encode_to_vec},
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -28,14 +32,22 @@ impl TryFrom<HyprvisorMessage> for HyprWindowInfo {
         if !message.is_valid() {
             return Err(HyprvisorError::InvalidMessage);
         }
-        bincode::deserialize(&message.payload).map_err(HyprvisorError::BincodeError)
+
+        let decoded: Result<(HyprWindowInfo, usize), _> =
+            decode_from_slice(&message.payload, legacy());
+
+        match decoded {
+            Ok((bt, len)) if len == message.payload.len() => Ok(bt),
+            Err(_) | Ok(_) => Err(HyprvisorError::BincodeError),
+        }
     }
 }
 
 impl TryFrom<HyprWindowInfo> for HyprvisorMessage {
     type Error = HyprvisorError;
     fn try_from(window_info: HyprWindowInfo) -> HyprvisorResult<HyprvisorMessage> {
-        let payload: Vec<u8> = bincode::serialize(&window_info)?;
+        let payload: Vec<u8> = encode_to_vec(window_info, legacy())?;
+
         Ok(HyprvisorMessage {
             message_type: MessageType::Response,
             header: payload.len(),

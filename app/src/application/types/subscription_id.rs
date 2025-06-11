@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter, Result};
 pub enum SubscriptionID {
     Workspaces = 0,
     Window = 1,
-    Wifi = 2,
+    Network = 2,
     Bluetooth = 3,
     Invalid = 255,
 }
@@ -22,7 +22,7 @@ impl From<u8> for SubscriptionID {
         match value {
             0 => SubscriptionID::Workspaces,
             1 => SubscriptionID::Window,
-            2 => SubscriptionID::Wifi,
+            2 => SubscriptionID::Network,
             3 => SubscriptionID::Bluetooth,
             _ => SubscriptionID::Invalid,
         }
@@ -34,7 +34,7 @@ impl Display for SubscriptionID {
         match self {
             SubscriptionID::Workspaces => write!(f, "Workspaces"),
             SubscriptionID::Window => write!(f, "Window"),
-            SubscriptionID::Wifi => write!(f, "Wifi"),
+            SubscriptionID::Network => write!(f, "Wifi"),
             SubscriptionID::Bluetooth => write!(f, "Bluetooth"),
             SubscriptionID::Invalid => write!(f, "Invalid"),
         }

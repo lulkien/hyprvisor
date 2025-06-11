@@ -7,7 +7,7 @@ pub enum HyprvisorError {
     DaemonRunning,
     NoDaemon,
     JsonError(serde_json::Error),
-    BincodeError(bincode::Error),
+    BincodeError,
     IoError(io::Error),
     IpcError,
     ParseError,
@@ -33,9 +33,15 @@ impl From<serde_json::Error> for HyprvisorError {
     }
 }
 
-impl From<bincode::Error> for HyprvisorError {
-    fn from(err: bincode::Error) -> Self {
-        HyprvisorError::BincodeError(err)
+impl From<bincode::error::EncodeError> for HyprvisorError {
+    fn from(_: bincode::error::EncodeError) -> Self {
+        HyprvisorError::BincodeError
+    }
+}
+
+impl From<bincode::error::DecodeError> for HyprvisorError {
+    fn from(_: bincode::error::DecodeError) -> Self {
+        HyprvisorError::BincodeError
     }
 }
 
@@ -51,7 +57,7 @@ impl Display for HyprvisorError {
             HyprvisorError::DaemonRunning => write!(f, "Daemon is already running"),
             HyprvisorError::NoDaemon => write!(f, "No daemon found"),
             HyprvisorError::JsonError(err) => write!(f, "Json error: {err}"),
-            HyprvisorError::BincodeError(err) => write!(f, "Bincode error: {err}"),
+            HyprvisorError::BincodeError => write!(f, "Bincode error "),
             HyprvisorError::IpcError => write!(f, "Inter-processes communication error"),
             HyprvisorError::IoError(err) => write!(f, "IO error: {err}"),
             HyprvisorError::ParseError => write!(f, "Parse error"),

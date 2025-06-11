@@ -4,6 +4,7 @@ use crate::{
     ipc::message::{HyprvisorMessage, MessageType},
 };
 
+use bincode::config::legacy;
 use bluer::Address;
 use serde::{Deserialize, Serialize};
 
@@ -31,14 +32,22 @@ impl TryFrom<HyprvisorMessage> for BluetoothInfo {
         if !message.is_valid() {
             return Err(HyprvisorError::InvalidMessage);
         }
-        bincode::deserialize(&message.payload).map_err(HyprvisorError::BincodeError)
+
+        let decoded: Result<(BluetoothInfo, usize), _> =
+            bincode::serde::decode_from_slice(&message.payload, legacy());
+
+        match decoded {
+            Ok((bt, len)) if len == message.payload.len() => Ok(bt),
+            Err(_) | Ok(_) => Err(HyprvisorError::BincodeError),
+        }
     }
 }
 
 impl TryFrom<BluetoothInfo> for HyprvisorMessage {
     type Error = HyprvisorError;
-    fn try_from(wifi_info: BluetoothInfo) -> Result<Self, Self::Error> {
-        let payload: Vec<u8> = bincode::serialize(&wifi_info)?;
+    fn try_from(bt_info: BluetoothInfo) -> Result<Self, Self::Error> {
+        let payload: Vec<u8> = bincode::serde::encode_to_vec(bt_info, legacy())?;
+
         Ok(HyprvisorMessage {
             message_type: MessageType::Response,
             header: payload.len(),
